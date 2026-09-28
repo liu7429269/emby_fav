@@ -1,0 +1,24 @@
+﻿emby:
+  server:
+    url: http://192.168.31.81:9096/
+    username: 
+    password: 
+    api-key: # 鍙€夛紝濡傛灉鎻愪緵鍒欎紭鍏堜娇鐢ˋPI Key璁よ瘉
+
+server:
+  port: 8383
+
+spring:
+  application:
+    name: emby-fav-manager
+  thymeleaf:
+    prefix: classpath:/templates/
+    suffix: .html
+    mode: HTML
+    encoding: UTF-8
+    cache: false
+
+logging:
+  level:
+    com.emby: INFO
+    org.springframework.web: INFO

@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${searchQuery != null and !searchQuery.isEmpty()} ? (${searchQuery} + ' - 搜索') : '搜索'">搜索</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <style>
+        :root {
+            --bg: #101010;
+            --text: #eee;
+            --muted: #9a9a9a;
+            --accent: #52b54b;
+            --card: #1c1c1c;
+            --line: #2c2c2c;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: "Segoe UI", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+        .topbar {
+            display: flex; align-items: center; justify-content: space-between; gap: 16px;
+            padding: 14px 24px; background: rgba(16,16,16,.95); border-bottom: 1px solid var(--line);
+            position: sticky; top: 0; z-index: 20;
+        }
+        .back { color: var(--text); text-decoration: none; background: #252525; padding: 7px 12px; border-radius: 4px; }
+        .top-search { display: flex; align-items: stretch; flex: 1; max-width: 560px; min-width: 220px; }
+        .top-search select, .top-search input[type="search"] {
+            background: #121212; border: 1px solid #333; color: var(--text); height: 34px; font-size: .9rem;
+        }
+        .top-search select { border-radius: 6px 0 0 6px; padding: 0 8px; max-width: 150px; }
+        .top-search input[type="search"] { flex: 1; border-left: none; padding: 0 10px; min-width: 0; }
+        .top-search button { height: 34px; border: none; border-radius: 0 6px 6px 0; background: var(--accent); color: #fff; padding: 0 14px; cursor: pointer; font-weight: 600; }
+        .user { color: var(--muted); font-size: .9rem; }
+        .user a { color: var(--accent); margin-left: 12px; text-decoration: none; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px 24px 48px; }
+        .stats { color: var(--muted); margin-bottom: 16px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px; }
+        .card-wrap { position: relative; }
+        .card { background: var(--card); border-radius: 8px; overflow: hidden; color: inherit; display: block; text-decoration: none; }
+        .poster { aspect-ratio: 2 / 3; background: #2a2a2a center/cover no-repeat; position: relative; overflow: visible; }
+        .poster.folder { aspect-ratio: 16 / 10; }
+        .info { padding: 10px 10px 12px; }
+        .info h3 { font-size: .92rem; font-weight: 600; line-height: 1.3; }
+        .info p { color: var(--muted); font-size: .8rem; margin-top: 4px; }
+        .type-tag { position: absolute; left: 8px; top: 8px; background: rgba(0,0,0,.7); font-size: .7rem; padding: 3px 6px; border-radius: 3px; }
+        .pot-btn, .play-btn, .more-btn {
+            position: absolute; bottom: 8px; width: 28px; height: 28px; border: none; border-radius: 50%;
+            cursor: pointer; z-index: 4; color: #fff; display: flex; align-items: center; justify-content: center;
+        }
+        .play-btn { right: 40px; background: rgba(82,181,75,.85); }
+        .pot-btn { right: 72px; background: rgba(52,120,200,.88); font-size: .65rem; font-weight: 700; }
+        .more-btn { right: 8px; background: rgba(0,0,0,.65); font-weight: 700; z-index: 5; }
+        .more-menu {
+            display: none; position: absolute; right: 8px; bottom: 40px; background: #1a1a1a;
+            border: 1px solid #444; border-radius: 6px; min-width: 110px; z-index: 6;
+        }
+        .more-menu.show { display: block; }
+        .more-menu button { display: block; width: 100%; background: none; border: none; color: #f0f0f0; text-align: left; padding: 8px 12px; cursor: pointer; }
+        .more-menu button.danger { color: #ff6b6b; }
+        .card.just-played .poster { outline: 5px solid #5dca56; outline-offset: 2px; }
+        .empty { text-align: center; color: var(--muted); padding: 60px 20px; }
+        .pager { display: flex; justify-content: center; gap: 12px; margin-top: 28px; }
+        .pager a, .pager span { color: var(--text); text-decoration: none; background: #252525; padding: 8px 14px; border-radius: 4px; }
+        .pager .disabled { opacity: .4; pointer-events: none; }
+        .modal-mask { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.65); z-index: 100; align-items: center; justify-content: center; }
+        .modal-mask.show { display: flex; }
+        .modal { background: #1a1a1a; border: 1px solid #333; border-radius: 10px; padding: 24px; width: 460px; max-width: 92vw; }
+        .modal h2 { font-size: 1.2rem; margin-bottom: 16px; }
+        .modal .row { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+        .btn { background: var(--accent); color: #fff; border: none; border-radius: 4px; padding: 9px 16px; cursor: pointer; font-weight: 600; }
+        .btn.secondary { background: #333; }
+        .col-list { max-height: 360px; overflow: auto; }
+        .col-item { display: flex; align-items: center; gap: 10px; width: 100%; background: #121212; border: 1px solid #333; color: var(--text); border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; cursor: pointer; text-align: left; }
+        .col-thumb { width: 40px; height: 56px; border-radius: 4px; background: #2a2a2a center/cover no-repeat; flex-shrink: 0; }
+    </style>
+</head>
+<body>
+<div class="topbar">
+    <a class="back" href="/libraries">← 媒体库</a>
+    <form class="top-search" action="/search" method="get">
+        <select name="scope">
+            <option value="all" th:selected="${searchScope == null or searchScope == 'all'}">全局</option>
+            <option th:each="lib : ${libraries}"
+                    th:value="${lib.id}"
+                    th:text="${lib.name}"
+                    th:selected="${searchScope == lib.id}">库</option>
+        </select>
+        <input type="search" name="q" placeholder="搜索媒体…" th:value="${searchQuery}" required>
+        <button type="submit">搜索</button>
+    </form>
+    <div class="user">
+        <span th:text="${userName}">用户</span>
+        <a href="/logout">退出</a>
+    </div>
+</div>
+
+<div class="container">
+    <div class="stats" th:if="${searchQuery != null and !searchQuery.isEmpty()}">
+        搜索「<span th:text="${searchQuery}">关键词</span>」
+        · 共 <span th:text="${totalRecordCount != null ? totalRecordCount : 0}">0</span> 项
+    </div>
+    <div class="stats" th:if="${searchQuery == null or searchQuery.isEmpty()}">输入关键词开始搜索</div>
+
+    <div class="grid" th:if="${mediaItems != null and !mediaItems.isEmpty()}">
+        <th:block th:each="item : ${mediaItems}">
+            <a class="card"
+               th:if="${item.isFolder == true or item.type == 'Folder' or item.type == 'BoxSet' or item.type == 'CollectionFolder'}"
+               th:href="@{/media(libraryId=${searchScope != null and searchScope != 'all' ? searchScope : item.id}, parentId=${item.id}, view=folder, flat=0)}">
+                <div class="poster folder"
+                     th:style="|background-image:url(/api/image/${item.id}?type=Primary&amp;maxHeight=360)|">
+                    <span class="type-tag" th:text="${item.type}">Folder</span>
+                </div>
+                <div class="info">
+                    <h3 th:text="${item.name}">名称</h3>
+                    <p th:text="${item.type}">Folder</p>
+                </div>
+            </a>
+            <div class="card-wrap"
+                 th:unless="${item.isFolder == true or item.type == 'Folder' or item.type == 'BoxSet' or item.type == 'CollectionFolder'}">
+                <a class="card detail-link" th:data-id="${item.id}"
+                   th:href="@{/media/item/{id}(id=${item.id}, libraryId=${searchScope != null and searchScope != 'all' ? searchScope : ''})}">
+                    <div class="poster"
+                         th:style="|background-image:url(/api/image/${item.id}?type=Primary&amp;maxHeight=400)|">
+                        <span class="type-tag" th:text="${item.type}">Movie</span>
+                        <button type="button" class="pot-btn" title="PotPlayer 播放"
+                                th:data-id="${item.id}"
+                                onclick="event.preventDefault();event.stopPropagation();openInPotPlayer(this.getAttribute('data-id'));">P</button>
+                        <button type="button" class="play-btn" title="在 Emby 中播放"
+                                th:data-id="${item.id}"
+                                th:data-url="@{/web/index.html(playItemId=${item.id})}"
+                                onclick="event.preventDefault();event.stopPropagation();playInEmby(this);">▶</button>
+                        <button type="button" class="more-btn" title="更多操作"
+                                th:data-id="${item.id}"
+                                th:data-name="${item.name}"
+                                onclick="event.preventDefault();event.stopPropagation();toggleMoreMenu(this);">⋮</button>
+                        <div class="more-menu" onclick="event.preventDefault();event.stopPropagation();">
+                            <button type="button"
+                                    th:data-id="${item.id}"
+                                    onclick="event.preventDefault();event.stopPropagation();openAddToCollection(this);">添加到合集</button>
+                        </div>
+                    </div>
+                    <div class="info">
+                        <h3 th:text="${item.name}">标题</h3>
+                        <p th:text="${item.productionYear != null ? item.productionYear : ''}">年份</p>
+                    </div>
+                </a>
+            </div>
+        </th:block>
+    </div>
+
+    <div class="empty" th:if="${searchQuery != null and !searchQuery.isEmpty() and (mediaItems == null or mediaItems.isEmpty())}">
+        没有找到匹配的媒体。
+    </div>
+
+    <div class="pager" th:if="${totalRecordCount != null and totalRecordCount > limit}">
+        <a th:classappend="${startIndex <= 0} ? ' disabled'"
+           th:href="@{/search(q=${searchQuery}, scope=${searchScope}, startIndex=${startIndex - limit}, limit=${limit})}">上一页</a>
+        <span th:text="${(startIndex / limit) + 1} + ' / ' + ${((totalRecordCount + limit - 1) / limit)}">1 / 1</span>
+        <a th:classappend="${startIndex + limit >= totalRecordCount} ? ' disabled'"
+           th:href="@{/search(q=${searchQuery}, scope=${searchScope}, startIndex=${startIndex + limit}, limit=${limit})}">下一页</a>
+    </div>
+</div>
+
+<div class="modal-mask" id="colMask">
+    <div class="modal">
+        <h2>添加到合集</h2>
+        <div class="col-list" id="colList">加载中…</div>
+        <div class="row">
+            <button class="btn secondary" id="colCancel" type="button">取消</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const LAST_PLAYED_KEY = 'embyBrowseLastPlayedId';
+    function markJustPlayed(itemId) {
+        if (!itemId) return;
+        try { sessionStorage.setItem(LAST_PLAYED_KEY, itemId); } catch (e) {}
+        document.querySelectorAll('.card.just-played').forEach(function (c) { c.classList.remove('just-played'); });
+        const card = document.querySelector('.card[data-id="' + itemId + '"]');
+        if (card) card.classList.add('just-played');
+    }
+    function playInEmby(btn) {
+        markJustPlayed(btn.getAttribute('data-id'));
+        const url = btn.getAttribute('data-url');
+        if (url) window.open(url, '_blank');
+    }
+    function openInPotPlayer(itemId) {
+        if (!itemId) return;
+        markJustPlayed(itemId);
+        fetch('/api/media/' + encodeURIComponent(itemId) + '/potplayer-url')
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!data.success) { alert(data.message || '获取播放地址失败'); return; }
+                window.location.href = 'potplayer://' + data.streamUrl;
+            }).catch(function (err) { alert('请求失败: ' + err.message); });
+    }
+    try { markJustPlayed(sessionStorage.getItem(LAST_PLAYED_KEY)); } catch (e) {}
+
+    function closeAllMoreMenus() {
+        document.querySelectorAll('.more-menu.show').forEach(function (m) { m.classList.remove('show'); });
+    }
+    function toggleMoreMenu(btn) {
+        const menu = btn.parentElement ? btn.parentElement.querySelector('.more-menu') : null;
+        if (!menu) return;
+        const open = menu.classList.contains('show');
+        closeAllMoreMenus();
+        if (!open) menu.classList.add('show');
+    }
+    document.addEventListener('click', closeAllMoreMenus);
+
+    const colMask = document.getElementById('colMask');
+    const colList = document.getElementById('colList');
+    let pendingColItemId = null;
+    function openAddToCollection(el) {
+        pendingColItemId = el.getAttribute('data-id');
+        closeAllMoreMenus();
+        colList.textContent = '加载中…';
+        colMask.classList.add('show');
+        fetch('/api/collections').then(function (r) { return r.json(); }).then(function (data) {
+            if (!data.success) { colList.textContent = data.message || '加载失败'; return; }
+            const cols = data.collections || [];
+            if (!cols.length) { colList.textContent = '还没有合集'; return; }
+            colList.innerHTML = '';
+            cols.forEach(function (c) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'col-item';
+                const thumb = document.createElement('div');
+                thumb.className = 'col-thumb';
+                const colId = c.Id || c.id;
+                const colName = c.Name || c.name || colId;
+                if (colId) thumb.style.backgroundImage = 'url(/api/image/' + encodeURIComponent(colId) + '?type=Primary&maxHeight=120)';
+                const name = document.createElement('span');
+                name.textContent = colName;
+                btn.appendChild(thumb);
+                btn.appendChild(name);
+                btn.addEventListener('click', function () {
+                    btn.disabled = true;
+                    fetch('/api/collections/' + encodeURIComponent(colId) + '/items', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ itemIds: [pendingColItemId] })
+                    }).then(function (r) { return r.json(); }).then(function (res) {
+                        if (!res.success) { alert(res.message || '添加失败'); btn.disabled = false; return; }
+                        colMask.classList.remove('show');
+                    }).catch(function (err) { alert('请求失败: ' + err.message); btn.disabled = false; });
+                });
+                colList.appendChild(btn);
+            });
+        }).catch(function (err) { colList.textContent = '请求失败: ' + err.message; });
+    }
+    document.getElementById('colCancel').addEventListener('click', function () {
+        colMask.classList.remove('show');
+        pendingColItemId = null;
+    });
+</script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+﻿==== tags_root ====
+URL=https://nemby.kkangus.top:11443/emby/Tags?UserId=ec1890c996204a419b493a06f8760b09
+{"Items":[{"Name":"aaa","Id":"93224"}],"TotalRecordCount":1}
+
+==== tags_with_parent ====
+URL=https://nemby.kkangus.top:11443/emby/Tags?UserId=ec1890c996204a419b493a06f8760b09&ParentId=5526
+{"Items":[],"TotalRecordCount":0}
+
+==== item_tags_field ====
+URL=https://nemby.kkangus.top:11443/emby/Users/ec1890c996204a419b493a06f8760b09/Items/6686?Fields=Tags,TagItems,Genres,Path,MediaSources
+{"Name":"__ AOA ____ _____ 150514 Multi View_(1)","ServerId":"394284ae031f4a869f4f133709c1b7b6","Id":"6686","Etag":"1d76558368f858e2dbbdbb68e24b3179","DateCreated":"2022-08-20T01:40:30.0000000Z","CanDelete":false,"CanDownload":true,"PresentationUniqueKey":"735ac515a02acefb42f60fbf5bd0aab6","SupportsSync":true,"Container":"mp4","SortName":"__ AOA ____ _____ 150514 Multi View_(1)","ForcedSortName":"__ AOA ____ _____ 150514 Multi View_(1)","ExternalUrls":[],"MediaSources":[{"Protocol":"File","Id":"735ac515a02acefb42f60fbf5bd0aab6","Path":"/emby_data8/归档/B站/美女/__ AOA ____ _____ 150514 Multi View_(1)/__ AOA ____ _____ 150514 Multi View_(1)_高清 1080P+.mp4","Type":"Default","Container":"mp4","Size":97581016,"Name":"_高清 1080P+","IsRemote":false,"RunTimeTicks":2263250000,"SupportsTranscoding":true,"SupportsDirectStream":true,"SupportsDirectPlay":true,"IsInfiniteStream":false,"RequiresOpening":false,"RequiresClosing":false,"RequiresLooping":false,"SupportsProbing":false,"MediaStreams":[{"Codec":"h264","CodecTag":"avc1","Language":"und","ColorTransfer":"bt709","ColorPrimaries":"bt709","ColorSpace":"bt709","TimeBase":"1/16000","VideoRange":"SDR","DisplayTitle":"1080p H264","NalLengthSize":"4","IsInterlaced":false,"BitRate":3314594,"BitDepth":8,"RefFrames":1,"IsDefault":true,"IsForced":false,"Height":1080,"Width":1920,"AverageFrameRate":29.950056,"RealFrameRate":29.97003,"Profile":"High","Type":"Video","AspectRatio":"16:9","Index":0,"IsExternal":false,"IsTextSubtitleStream":false,"Supports
+
+==== item_with_tags ====
+URL=https://nemby.kkangus.top:11443/emby/Users/ec1890c996204a419b493a06f8760b09/Items?ParentId=5526&IncludeItemTypes=Movie&Recursive=true&Fields=Tags,TagItems&StartIndex=0&Limit=3&SortBy=DateCreated&SortOrder=Descending
+{"Items":[{"Name":"恋爱预警！双马尾啦啦队少女《Oh!》甜力全开，这一刻只想为你加油！","ServerId":"394284ae031f4a869f4f133709c1b7b6","Id":"89658","RunTimeTicks":629120000,"IsFolder":false,"Type":"Movie","TagItems":[],"UserData":{"PlaybackPositionTicks":0,"PlayCount":0,"IsFavorite":false,"Played":false},"ImageTags":{"Primary":"ec4d8084f2656d4de19ea5cb59cb7521"},"BackdropImageTags":["9693ef95f564a5ef3675d3bcc50efcc8","9693ef95f564a5ef3675d3bcc50efcc8"],"MediaType":"Video"},{"Name":"Video_1779729215633_912","ServerId":"394284ae031f4a869f4f133709c1b7b6","Id":"28605","RunTimeTicks":773700000,"IsFolder":false,"Type":"Movie","TagItems":[],"UserData":{"PlaybackPositionTicks":0,"PlayCount":0,"IsFavorite":false,"Played":false},"ImageTags":{"Primary":"8b985253ed35c6b0e8ace897146fa6d7"},"BackdropImageTags":[],"MediaType":"Video"},{"Name":"九月五日","ServerId":"394284ae031f4a869f4f133709c1b7b6","Id":"28598","RunTimeTicks":551480000,"IsFolder":false,"Type":"Movie","TagItems":[],"UserData":{"PlaybackPositionTicks":0,"PlayCount":0,"IsFavorite":false,"Played":false},"ImageTags":{"Primary":"bf4b366dcbb4e1c74d9b174a3d19d13e","Logo":"3ca1a01fd145a223583bb1842e83bbed","Thumb":"c8394d63f8266f8e592c2232478753e6"},"BackdropImageTags":["ff9c1cd285f189ed5cd5f99531ff80a9"],"MediaType":"Video"}],"TotalRecordCount":1992}
+
+==== items_by_tag ====
+URL=https://nemby.kkangus.top:11443/emby/Users/ec1890c996204a419b493a06f8760b09/Items?ParentId=5526&IncludeItemTypes=Movie&Recursive=true&Tags=test&StartIndex=0&Limit=1
+{"Items":[],"TotalRecordCount":0}
+

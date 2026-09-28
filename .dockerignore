@@ -1,0 +1,15 @@
+target/**
+!target/emby-fav-manager-1.0.0.jar
+.git/
+.idea/
+.vscode/
+.cursor/
+openspec/
+*.log
+*.iml
+.DS_Store
+Thumbs.db
+app.out.log
+app.err.log
+tmp_*.txt
+startup.log

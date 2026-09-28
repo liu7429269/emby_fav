@@ -1,0 +1,1741 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${currentLibrary != null ? currentLibrary.name : '浏览'} + ' - Emby'">浏览 - Emby</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <style>
+        :root {
+            --bg: #101010;
+            --surface: #181818;
+            --text: #eee;
+            --muted: #9a9a9a;
+            --accent: #52b54b;
+            --card: #1c1c1c;
+            --line: #2c2c2c;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 14px 24px;
+            background: rgba(16,16,16,.95);
+            border-bottom: 1px solid var(--line);
+            position: sticky;
+            top: 0;
+            z-index: 20;
+        }
+        .left { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+        .top-search {
+            display: flex;
+            align-items: stretch;
+            flex: 1;
+            max-width: 560px;
+            min-width: 220px;
+        }
+        .top-search select, .top-search input[type="search"] {
+            background: #121212;
+            border: 1px solid #333;
+            color: var(--text);
+            height: 34px;
+            font-size: .9rem;
+        }
+        .top-search select {
+            border-radius: 6px 0 0 6px;
+            padding: 0 8px;
+            max-width: 150px;
+        }
+        .top-search input[type="search"] {
+            flex: 1;
+            border-left: none;
+            padding: 0 10px;
+            min-width: 0;
+        }
+        .top-search button {
+            height: 34px;
+            border: none;
+            border-radius: 0 6px 6px 0;
+            background: var(--accent);
+            color: #fff;
+            padding: 0 14px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        .col-list { max-height: 360px; overflow: auto; }
+        .col-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            background: #121212;
+            border: 1px solid #333;
+            color: var(--text);
+            border-radius: 6px;
+            padding: 8px 10px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            text-align: left;
+        }
+        .col-item:hover { background: #1e2a1e; border-color: var(--accent); }
+        .col-thumb {
+            width: 40px;
+            height: 56px;
+            border-radius: 4px;
+            background: #2a2a2a center/cover no-repeat;
+            flex-shrink: 0;
+        }
+        .back {
+            color: var(--text);
+            text-decoration: none;
+            padding: 6px 10px;
+            border-radius: 4px;
+            background: #252525;
+            font-size: .9rem;
+        }
+        .back:hover { background: #333; }
+        .crumb { color: var(--muted); font-size: .95rem; }
+        .crumb strong { color: var(--text); }
+        .user a { color: var(--accent); text-decoration: none; margin-left: 10px; }
+        .filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: flex-end;
+            padding: 18px 24px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--line);
+        }
+        .field { display: flex; flex-direction: column; gap: 6px; min-width: 180px; }
+        .field label { font-size: .8rem; color: var(--muted); }
+        .field select, .field input[type="search"] {
+            background: #222;
+            border: 1px solid #333;
+            color: var(--text);
+            padding: 8px 10px;
+            border-radius: 4px;
+            min-width: 200px;
+        }
+        .toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 0;
+            color: var(--text);
+            font-size: .95rem;
+        }
+        .btn {
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            padding: 9px 16px;
+            cursor: pointer;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn.secondary { background: #333; }
+        .btn.danger { background: #c62828; }
+        .btn.danger:hover { filter: brightness(1.1); }
+        .btn:hover { filter: brightness(1.08); }
+        .btn:disabled { opacity: .45; cursor: not-allowed; filter: none; }
+
+        .toolbar-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+            padding: 12px 24px 0;
+            background: var(--surface);
+        }
+        .view-tabs {
+            display: inline-flex;
+            background: #2a2a32;
+            border-radius: 999px;
+            padding: 3px;
+            gap: 2px;
+        }
+        .view-tabs a {
+            color: #b0b0b8;
+            text-decoration: none;
+            padding: 7px 16px;
+            border-radius: 999px;
+            font-size: .9rem;
+            white-space: nowrap;
+        }
+        .view-tabs a.active {
+            background: #4a4a55;
+            color: #fff;
+            font-weight: 600;
+        }
+        .sort-wrap { position: relative; }
+        .sort-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: #fff;
+            color: #111;
+            border: none;
+            border-radius: 999px;
+            padding: 8px 14px;
+            cursor: pointer;
+            font-size: .9rem;
+            font-weight: 600;
+        }
+        .sort-btn .sort-icon {
+            width: 14px;
+            height: 12px;
+            display: inline-block;
+            background:
+                linear-gradient(#111, #111) 0 0 / 100% 2px no-repeat,
+                linear-gradient(#111, #111) 0 5px / 70% 2px no-repeat,
+                linear-gradient(#111, #111) 0 10px / 40% 2px no-repeat;
+        }
+        .sort-menu {
+            display: none;
+            position: absolute;
+            top: calc(100% + 6px);
+            left: 0;
+            min-width: 220px;
+            max-height: 360px;
+            overflow: auto;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            z-index: 40;
+            box-shadow: 0 12px 28px rgba(0,0,0,.55);
+            padding: 4px 0;
+        }
+        .sort-menu.show { display: block; }
+        .sort-menu button {
+            display: flex;
+            align-items: center;
+            width: 100%;
+            gap: 8px;
+            background: transparent;
+            border: none;
+            color: #ddd;
+            padding: 10px 14px;
+            cursor: pointer;
+            font-size: .9rem;
+            text-align: left;
+        }
+        .sort-menu button:hover { background: #2c2c2c; }
+        .sort-menu button .mark { width: 16px; color: var(--accent); }
+        .sort-menu button .dir { margin-left: auto; color: var(--muted); }
+        .sort-menu hr {
+            border: none;
+            border-top: 1px solid #2c2c2c;
+            margin: 4px 0;
+        }
+        .page-size-field label { font-size: .8rem; color: var(--muted); display: block; margin-bottom: 4px; }
+        .page-size-field select {
+            background: #222;
+            border: 1px solid #333;
+            color: var(--text);
+            padding: 8px 10px;
+            border-radius: 4px;
+        }
+
+        .container { max-width: 1600px; margin: 0 auto; padding: 22px 24px 40px; }
+        .stats { color: var(--muted); margin-bottom: 16px; font-size: .9rem; }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 16px;
+        }
+        .card {
+            background: var(--card);
+            border-radius: 6px;
+            overflow: hidden;
+            text-decoration: none;
+            color: inherit;
+            display: block;
+            transition: transform .18s ease, box-shadow .18s ease;
+        }
+        .card:hover {
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 10px 24px rgba(0,0,0,.5);
+        }
+        .poster {
+            aspect-ratio: 2 / 3;
+            background: #2a2a2a center/cover no-repeat;
+            position: relative;
+            overflow: visible;
+        }
+        .poster.folder { aspect-ratio: 16 / 10; }
+        .fav-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: rgba(0,0,0,.65);
+            color: rgba(255,255,255,.9);
+            width: 30px;
+            height: 30px;
+            border: none;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            cursor: pointer;
+            z-index: 4;
+            padding: 0;
+            line-height: 1;
+            transition: background .15s, color .15s, transform .1s;
+        }
+        .fav-btn:hover { background: rgba(0,0,0,.85); transform: scale(1.08); }
+        .fav-btn.is-favorite { color: #ff4757; background: rgba(0,0,0,.75); }
+        .type-tag {
+            position: absolute;
+            left: 8px;
+            top: 36px;
+            background: rgba(0,0,0,.7);
+            font-size: .7rem;
+            padding: 3px 6px;
+            border-radius: 3px;
+            z-index: 2;
+        }
+        .played-btn {
+            position: absolute;
+            left: 8px;
+            bottom: 8px;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            border: 2px solid rgba(255,255,255,.85);
+            background: rgba(0,0,0,.45);
+            color: transparent;
+            cursor: pointer;
+            z-index: 4;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: .85rem;
+            line-height: 1;
+            padding: 0;
+        }
+        .played-btn::after {
+            content: "✓";
+            color: rgba(255,255,255,.35);
+            font-weight: 700;
+        }
+        .played-btn.is-played {
+            background: rgba(82,181,75,.92);
+            border-color: rgba(82,181,75,.95);
+        }
+        .played-btn.is-played::after {
+            color: #fff;
+        }
+        .played-btn:hover {
+            filter: brightness(1.15);
+        }
+        .play-btn {
+            position: absolute;
+            right: 40px;
+            bottom: 8px;
+            background: rgba(82,181,75,.85);
+            color: #fff;
+            border: none;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: .8rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 4;
+        }
+        .play-btn:hover { background: var(--accent); }
+        .pot-btn {
+            position: absolute;
+            right: 72px;
+            bottom: 8px;
+            background: rgba(52, 120, 200, .88);
+            color: #fff;
+            border: none;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: .65rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 4;
+            padding: 0;
+            line-height: 1;
+        }
+        .pot-btn:hover { background: rgba(72, 140, 220, .95); }
+        .more-btn {
+            position: absolute;
+            right: 8px;
+            bottom: 8px;
+            background: rgba(0,0,0,.65);
+            color: #fff;
+            border: none;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 700;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 5;
+            padding: 0;
+        }
+        .more-btn:hover { background: rgba(0,0,0,.85); }
+        .more-menu {
+            display: none;
+            position: absolute;
+            right: 8px;
+            bottom: 40px;
+            background: #1a1a1a;
+            border: 1px solid #444;
+            border-radius: 6px;
+            min-width: 88px;
+            overflow: hidden;
+            z-index: 6;
+            box-shadow: 0 8px 20px rgba(0,0,0,.45);
+        }
+        .more-menu.show { display: block; }
+        .more-menu button {
+            display: block;
+            width: 100%;
+            background: none;
+            border: none;
+            color: #f0f0f0;
+            text-align: left;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: .85rem;
+        }
+        .more-menu button:hover { background: #2a2a2a; }
+        .more-menu button.danger { color: #ff6b6b; }
+        .info { padding: 10px 10px 12px; }
+        .info h3 {
+            font-size: .92rem;
+            font-weight: 600;
+            line-height: 1.3;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            min-height: 2.4em;
+        }
+        .info p { color: var(--muted); font-size: .8rem; margin-top: 4px; }
+        .empty { text-align: center; color: var(--muted); padding: 60px 20px; }
+        .pager {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            margin-top: 28px;
+        }
+        .pager a, .pager span {
+            color: var(--text);
+            text-decoration: none;
+            background: #252525;
+            padding: 8px 14px;
+            border-radius: 4px;
+            font-size: .9rem;
+        }
+        .pager a:hover { background: #333; }
+        .pager .disabled { opacity: .4; pointer-events: none; }
+
+        /* 多选 */
+        .selectbar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 14px;
+            flex-wrap: wrap;
+        }
+        .selectbar .sel-info { color: var(--muted); font-size: .9rem; }
+        .card-wrap { position: relative; }
+        .card-check {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            width: 22px;
+            height: 22px;
+            z-index: 3;
+            cursor: pointer;
+            accent-color: var(--accent);
+        }
+        .card.selected .poster { box-shadow: inset 0 0 0 3px var(--accent); }
+        .card.just-played .poster {
+            outline: 5px solid #5dca56;
+            outline-offset: 2px;
+            box-shadow: 0 0 0 3px rgba(82, 181, 75, .45), 0 0 18px rgba(82, 181, 75, .65);
+        }
+        .card.selected.just-played .poster {
+            box-shadow: inset 0 0 0 3px var(--accent),
+                        0 0 0 3px rgba(82, 181, 75, .45),
+                        0 0 18px rgba(82, 181, 75, .65);
+        }
+
+        /* 文件浏览器 */
+        .move-breadcrumb {
+            background: #121212;
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 8px 10px;
+            font-size: .82rem;
+            color: var(--text);
+            word-break: break-all;
+            line-height: 1.5;
+            max-height: 60px;
+            overflow-y: auto;
+        }
+        .move-breadcrumb a {
+            color: var(--accent);
+            cursor: pointer;
+            text-decoration: none;
+        }
+        .move-breadcrumb a:hover { text-decoration: underline; }
+        .move-breadcrumb .sep { color: #555; margin: 0 3px; }
+        .move-dir-list {
+            background: #121212;
+            border: 1px solid #333;
+            border-radius: 6px;
+            max-height: 240px;
+            overflow-y: auto;
+            margin-bottom: 8px;
+        }
+        .move-dir-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid #1e1e1e;
+            font-size: .88rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .move-dir-item:hover { background: #1e2a3a; }
+        .move-dir-item:last-child { border-bottom: none; }
+        .move-dir-item .icon { color: var(--accent); font-size: 1rem; }
+        .move-dir-empty { padding: 16px; text-align: center; color: #666; font-size: .82rem; }
+
+        /* 弹窗 */
+        .modal-mask {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,.6);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+        .modal-mask.show { display: flex; }
+        .modal {
+            background: #1a1a1a;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            padding: 24px;
+            width: 460px;
+            max-width: 92vw;
+            max-height: 86vh;
+            overflow: auto;
+        }
+        .modal h2 { font-size: 1.2rem; margin-bottom: 16px; }
+        .modal label { display: block; color: var(--muted); font-size: .82rem; margin: 12px 0 6px; }
+        .modal input, .modal select {
+            width: 100%;
+            background: #121212;
+            border: 1px solid #333;
+            color: var(--text);
+            padding: 9px 10px;
+            border-radius: 5px;
+            font-size: .95rem;
+        }
+        .modal .row { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+        .progress-bar {
+            height: 10px;
+            background: #2a2a2a;
+            border-radius: 5px;
+            overflow: hidden;
+            margin: 12px 0;
+        }
+        .progress-bar > div {
+            height: 100%;
+            background: var(--accent);
+            width: 0;
+            transition: width .3s;
+        }
+        .prog-text { color: var(--muted); font-size: .88rem; word-break: break-all; }
+        .failed-list {
+            margin-top: 10px;
+            max-height: 140px;
+            overflow: auto;
+            background: #121212;
+            border: 1px solid #333;
+            border-radius: 5px;
+            padding: 8px 10px;
+            font-size: .82rem;
+            color: #ff9a9a;
+        }
+        .tag-options {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+            gap: 8px;
+            max-height: 190px;
+            overflow: auto;
+            padding: 10px;
+            background: #121212;
+            border: 1px solid #333;
+            border-radius: 5px;
+        }
+        .tag-option {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--text);
+            font-size: .88rem;
+            cursor: pointer;
+            overflow: hidden;
+        }
+        .tag-option input { width: auto; }
+        .tag-option span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .tag-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+        .tag-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 8px;
+            border-radius: 12px;
+            background: #2d542a;
+            color: #dff5dc;
+            font-size: .82rem;
+        }
+        .tag-chip button {
+            border: 0;
+            background: transparent;
+            color: #b8d9b3;
+            cursor: pointer;
+            padding: 0;
+        }
+    </style>
+</head>
+<body>
+<div class="topbar">
+    <div class="left">
+        <a class="back" href="/libraries">← 媒体库</a>
+        <div class="crumb">
+            <strong th:text="${currentLibrary != null ? currentLibrary.name : '浏览'}">库</strong>
+            <span th:if="${parentId != null and parentId != selectedLibraryId}"> / 文件夹</span>
+        </div>
+    </div>
+    <form class="top-search" action="/search" method="get">
+        <select name="scope">
+            <option value="all" th:selected="${searchScope == null or searchScope == 'all'}">全局</option>
+            <option th:each="lib : ${libraries}"
+                    th:value="${lib.id}"
+                    th:text="${lib.name}"
+                    th:selected="${searchScope == lib.id}">库</option>
+        </select>
+        <input type="search" name="q" placeholder="搜索媒体…" th:value="${searchQuery}" required>
+        <button type="submit">搜索</button>
+    </form>
+    <div class="user">
+        <span th:text="${userName}">用户</span>
+        <a href="/logout">退出</a>
+    </div>
+</div>
+
+<form class="filters" id="filterForm" method="get" action="/media">
+    <input type="hidden" name="libraryId" th:value="${selectedLibraryId}">
+    <input type="hidden" name="parentId" th:value="${wantFlat ? selectedLibraryId : parentId}">
+    <input type="hidden" name="startIndex" value="0">
+    <input type="hidden" name="flat" id="flatInput" th:value="${wantFlat ? 1 : 0}">
+    <input type="hidden" name="view" id="viewInput" th:value="${viewMode}">
+    <input type="hidden" name="sortBy" id="sortByInput" th:value="${sortBy}">
+    <input type="hidden" name="sortOrder" id="sortOrderInput" th:value="${sortOrder}">
+
+    <div class="field">
+        <label for="tags">标签（等于）</label>
+        <input type="search" id="tagSearch" placeholder="搜索标签…" autocomplete="off">
+        <select name="tags" id="tags">
+            <option value="">全部标签</option>
+            <option th:each="t : ${tags}"
+                    th:value="${t.name}"
+                    th:text="${t.name}"
+                    th:selected="${selectedTags != null and selectedTags == t.name}"
+                    th:attr="data-name=${t.name}">
+            </option>
+        </select>
+    </div>
+
+    <div class="field">
+        <label for="excludeTags">排除标签（不等于）</label>
+        <input type="search" id="excludeTagSearch" placeholder="搜索标签…" autocomplete="off">
+        <select name="excludeTags" id="excludeTags">
+            <option value="">不排除</option>
+            <option th:each="t : ${tags}"
+                    th:value="${t.name}"
+                    th:text="${t.name}"
+                    th:selected="${selectedExcludeTags != null and selectedExcludeTags == t.name}"
+                    th:attr="data-name=${t.name}">
+            </option>
+        </select>
+    </div>
+
+    <label class="toggle">
+        <input type="checkbox" name="isFavorite" value="true" th:checked="${isFavorite == true}">
+        仅最爱
+    </label>
+
+    <div class="field">
+        <label for="playStatus">播放状态</label>
+        <select name="playStatus" id="playStatus">
+            <option value="" th:selected="${playStatus == null or playStatus == ''}">任意</option>
+            <option value="played" th:selected="${playStatus == 'played'}">已播放</option>
+            <option value="unplayed" th:selected="${playStatus == 'unplayed'}">未播放</option>
+            <option value="resumable" th:selected="${playStatus == 'resumable'}">继续播放</option>
+        </select>
+    </div>
+
+    <div class="page-size-field">
+        <label for="limitSelect">每页数量</label>
+        <select name="limit" id="limitSelect">
+            <option th:each="ps : ${pageSizes}"
+                    th:value="${ps}"
+                    th:text="${ps}"
+                    th:selected="${limit == ps}">200</option>
+        </select>
+    </div>
+
+    <button type="submit" class="btn">筛选</button>
+    <a class="btn secondary"
+       th:href="@{/media(libraryId=${selectedLibraryId}, limit=${limit}, sortBy=${sortBy}, sortOrder=${sortOrder})}">重置</a>
+    <a class="btn secondary"
+       th:if="${parentId != selectedLibraryId and !wantFlat}"
+       th:href="@{/media(libraryId=${selectedLibraryId}, flat=0, limit=${limit}, sortBy=${sortBy}, sortOrder=${sortOrder})}">回到库根</a>
+</form>
+
+<div class="toolbar-row">
+    <div class="view-tabs">
+        <a th:classappend="${viewMode == 'movie'} ? ' active'"
+           th:href="@{/media(libraryId=${selectedLibraryId}, view=movie, flat=1, tags=${selectedTags}, excludeTags=${selectedExcludeTags}, isFavorite=${isFavorite}, playStatus=${playStatus}, limit=${limit}, sortBy=${sortBy}, sortOrder=${sortOrder})}">电影</a>
+        <a th:classappend="${viewMode == 'folder'} ? ' active'"
+           th:href="@{/media(libraryId=${selectedLibraryId}, view=folder, flat=0, tags=${selectedTags}, excludeTags=${selectedExcludeTags}, isFavorite=${isFavorite}, playStatus=${playStatus}, limit=${limit}, sortBy=${sortBy}, sortOrder=${sortOrder})}">文件夹</a>
+        <a th:classappend="${viewMode == 'collection'} ? ' active'"
+           th:href="@{/media(libraryId=${selectedLibraryId}, view=collection, tags=${selectedTags}, excludeTags=${selectedExcludeTags}, isFavorite=${isFavorite}, playStatus=${playStatus}, limit=${limit}, sortBy=${sortBy}, sortOrder=${sortOrder})}">合集</a>
+    </div>
+    <div class="sort-wrap">
+        <button type="button" class="sort-btn" id="sortBtn" aria-haspopup="true" aria-expanded="false">
+            <span class="sort-icon" aria-hidden="true"></span>
+            <span id="sortBtnLabel">按标题排序</span>
+            <span>▾</span>
+        </button>
+        <div class="sort-menu" id="sortMenu" role="menu"></div>
+    </div>
+</div>
+
+<div class="container">
+    <div class="stats">
+        共 <span th:text="${totalRecordCount != null ? totalRecordCount : 0}">0</span> 项
+        · 当前显示
+        <span th:text="${mediaItems != null ? mediaItems.size() : 0}">0</span> 条
+        <span th:if="${viewMode == 'movie'}">（电影模式）</span>
+        <span th:if="${viewMode == 'folder'}">（文件夹模式）</span>
+        <span th:if="${viewMode == 'collection'}">（合集模式）</span>
+        · 每页 <span th:text="${limit}">200</span>
+    </div>
+
+    <div class="selectbar">
+        <button type="button" class="btn secondary" id="selectAllBtn">全选当前页</button>
+        <button type="button" class="btn secondary" id="clearSelBtn">清空选择</button>
+        <span class="sel-info" id="selInfo">已选 0 项</span>
+        <button type="button" class="btn" id="moveBtn" disabled>移动到新目录</button>
+        <button type="button" class="btn" id="batchTagBtn" disabled>批量打标签</button>
+        <button type="button" class="btn" id="batchFavBtn" disabled>批量收藏</button>
+        <button type="button" class="btn danger" id="batchDelBtn" disabled>批量删除</button>
+    </div>
+
+    <div class="grid" th:if="${mediaItems != null and !mediaItems.isEmpty()}">
+        <th:block th:each="item : ${mediaItems}">
+            <a class="card"
+               th:if="${item.isFolder == true or item.type == 'Folder' or item.type == 'BoxSet' or item.type == 'CollectionFolder'}"
+               th:href="@{/media(libraryId=${selectedLibraryId}, parentId=${item.id}, view=folder, flat=0, tags=${selectedTags}, excludeTags=${selectedExcludeTags}, isFavorite=${isFavorite}, playStatus=${playStatus}, limit=${limit}, sortBy=${sortBy}, sortOrder=${sortOrder})}">
+                <div class="poster folder"
+                     th:style="|background-image:url(/api/image/${item.id}?type=Primary&amp;maxHeight=360)|">
+                    <span class="type-tag" th:text="${item.type}">Folder</span>
+                </div>
+                <div class="info">
+                    <h3 th:text="${item.name}">名称</h3>
+                    <p th:text="${item.type}">Folder</p>
+                </div>
+            </a>
+            <div class="card-wrap"
+                 th:unless="${item.isFolder == true or item.type == 'Folder' or item.type == 'BoxSet' or item.type == 'CollectionFolder'}">
+                <input type="checkbox" class="card-check" th:value="${item.id}" th:data-name="${item.name}">
+                <a class="card detail-link" th:data-id="${item.id}"
+                   th:href="@{/media/item/{id}(id=${item.id}, libraryId=${selectedLibraryId}, parentId=${parentId}, flat=${wantFlat ? 1 : 0}, tags=${selectedTags}, excludeTags=${selectedExcludeTags}, isFavorite=${isFavorite}, playStatus=${playStatus}, startIndex=${startIndex}, limit=${limit}, sortBy=${sortBy}, sortOrder=${sortOrder})}">
+                    <div class="poster"
+                         th:style="|background-image:url(/api/image/${item.id}?type=Primary&amp;maxHeight=400)|">
+                        <button type="button" class="fav-btn"
+                                th:data-id="${item.id}"
+                                th:classappend="${item.userDataInfo != null and item.userDataInfo.isFavorite == true} ? ' is-favorite'"
+                                th:text="${item.userDataInfo != null and item.userDataInfo.isFavorite == true} ? '♥' : '♡'"
+                                title="切换收藏"></button>
+                        <span class="type-tag" th:text="${item.type}">Movie</span>
+                        <button type="button" class="played-btn"
+                                th:classappend="${item.userDataInfo != null and item.userDataInfo.played == true} ? ' is-played'"
+                                th:data-id="${item.id}"
+                                th:data-played="${item.userDataInfo != null and item.userDataInfo.played == true}"
+                                title="切换已播放/未播放"></button>
+                        <button type="button" class="pot-btn" title="PotPlayer 播放（需本机注册 potplayer:// 协议）"
+                                th:data-id="${item.id}"
+                                onclick="event.preventDefault();event.stopPropagation();openInPotPlayer(this.getAttribute('data-id'));">P</button>
+                        <button type="button" class="play-btn" title="在 Emby 中播放"
+                                th:data-id="${item.id}"
+                                th:data-url="@{/web/index.html(playItemId=${item.id})}"
+                                onclick="event.preventDefault();event.stopPropagation();playInEmby(this);">▶</button>
+                        <button type="button" class="more-btn" title="更多操作"
+                                th:data-id="${item.id}"
+                                th:data-name="${item.name}"
+                                onclick="event.preventDefault();event.stopPropagation();toggleMoreMenu(this);">⋮</button>
+                        <div class="more-menu"
+                             th:attr="data-id=${item.id},data-name=${item.name}"
+                             onclick="event.preventDefault();event.stopPropagation();">
+                            <button type="button"
+                                    th:data-id="${item.id}"
+                                    th:data-name="${item.name}"
+                                    onclick="event.preventDefault();event.stopPropagation();openAddToCollection(this);">添加到合集</button>
+                            <button type="button" class="danger"
+                                    th:data-id="${item.id}"
+                                    th:data-name="${item.name}"
+                                    onclick="event.preventDefault();event.stopPropagation();openSingleDelete(this);">删除</button>
+                        </div>
+                    </div>
+                    <div class="info">
+                        <h3 th:text="${item.name}">标题</h3>
+                        <p th:text="${item.productionYear != null ? item.productionYear : ''}">年份</p>
+                    </div>
+                </a>
+            </div>
+        </th:block>
+    </div>
+
+    <div class="empty" th:if="${mediaItems == null or mediaItems.isEmpty()}">
+        这里还没有内容。试试换个文件夹，或清除筛选条件。
+    </div>
+
+    <div class="pager" th:if="${totalRecordCount != null and totalRecordCount > limit}">
+        <a th:classappend="${startIndex <= 0} ? ' disabled'"
+           th:href="@{/media(libraryId=${selectedLibraryId}, parentId=${parentId}, tags=${selectedTags}, excludeTags=${selectedExcludeTags}, isFavorite=${isFavorite}, playStatus=${playStatus}, startIndex=${startIndex - limit}, limit=${limit}, flat=${wantFlat ? 1 : 0}, view=${viewMode}, sortBy=${sortBy}, sortOrder=${sortOrder})}">上一页</a>
+        <span th:text="${(startIndex / limit) + 1} + ' / ' + ${((totalRecordCount + limit - 1) / limit)}">1 / 1</span>
+        <a th:classappend="${startIndex + limit >= totalRecordCount} ? ' disabled'"
+           th:href="@{/media(libraryId=${selectedLibraryId}, parentId=${parentId}, tags=${selectedTags}, excludeTags=${selectedExcludeTags}, isFavorite=${isFavorite}, playStatus=${playStatus}, startIndex=${startIndex + limit}, limit=${limit}, flat=${wantFlat ? 1 : 0}, view=${viewMode}, sortBy=${sortBy}, sortOrder=${sortOrder})}">下一页</a>
+    </div>
+</div>
+
+<!-- 移动弹窗 -->
+<div class="modal-mask" id="moveMask">
+    <div class="modal">
+        <h2>移动到新目录</h2>
+        <label>当前目录</label>
+        <div id="moveBreadcrumb" class="move-breadcrumb">加载中…</div>
+        <label>子目录（点击进入）</label>
+        <div id="moveDirList" class="move-dir-list"><div class="move-dir-item">加载中…</div></div>
+        <div class="row">
+            <button class="btn secondary" id="moveUpBtn" type="button">上级目录</button>
+            <button class="btn secondary" id="moveCancel" type="button">取消</button>
+            <button class="btn" id="moveConfirm" type="button">选择此目录</button>
+        </div>
+    </div>
+</div>
+
+<!-- 批量标签弹窗 -->
+<div class="modal-mask" id="tagMask">
+    <div class="modal">
+        <h2>批量打标签</h2>
+        <div class="prog-text">将对 <strong id="tagSelectedCount">0</strong> 项媒体应用所选标签</div>
+        <label for="batchTagSearch">搜索已有标签</label>
+        <input type="search" id="batchTagSearch" placeholder="输入关键字筛选标签…">
+        <div class="tag-options" id="batchTagOptions">
+            <label class="tag-option" th:each="t : ${tags}" th:attr="data-name=${t.name}">
+                <input type="checkbox" th:value="${t.name}">
+                <span th:text="${t.name}">标签</span>
+            </label>
+        </div>
+        <label for="newBatchTag">新增标签</label>
+        <div class="row" style="justify-content: stretch; margin-top: 0;">
+            <input type="text" id="newBatchTag" placeholder="输入新标签名">
+            <button class="btn secondary" id="addBatchTag" type="button">添加</button>
+        </div>
+        <div class="prog-text" style="margin-top: 12px;">待应用标签</div>
+        <div class="tag-chips" id="batchTagChips"></div>
+        <div class="row">
+            <button class="btn secondary" id="tagCancel" type="button">取消</button>
+            <button class="btn" id="tagConfirm" type="button">确认应用</button>
+        </div>
+    </div>
+</div>
+
+<!-- 批量收藏弹窗 -->
+<div class="modal-mask" id="favMask">
+    <div class="modal">
+        <h2>批量收藏</h2>
+        <div class="prog-text">将对 <strong id="favSelectedCount">0</strong> 项媒体执行操作</div>
+        <div class="row" style="justify-content:center;gap:16px;">
+            <button class="btn" id="favAddConfirm" type="button">♥ 收藏</button>
+            <button class="btn secondary" id="favRemoveConfirm" type="button">♡ 取消收藏</button>
+            <button class="btn secondary" id="favCancel" type="button">取消</button>
+        </div>
+    </div>
+</div>
+
+<!-- 添加到合集 -->
+<div class="modal-mask" id="colMask">
+    <div class="modal">
+        <h2>添加到合集</h2>
+        <div class="col-list" id="colList">加载中…</div>
+        <div class="row">
+            <button class="btn secondary" id="colCancel" type="button">取消</button>
+        </div>
+    </div>
+</div>
+
+<!-- 删除确认弹窗 -->
+<div class="modal-mask" id="deleteMask">
+    <div class="modal">
+        <h2>确认删除</h2>
+        <div class="prog-text" id="deleteMsg">将永久删除文件、配套文件；独立文件夹会整夹删除，无法撤销。</div>
+        <div class="row">
+            <button class="btn secondary" id="deleteCancel" type="button">取消</button>
+            <button class="btn danger" id="deleteConfirm" type="button">确认删除</button>
+        </div>
+    </div>
+</div>
+
+<!-- 进度弹窗 -->
+<div class="modal-mask" id="progMask">
+    <div class="modal">
+        <h2>批量操作进度</h2>
+        <div class="progress-bar"><div id="progFill"></div></div>
+        <div class="prog-text" id="progText">准备中…</div>
+        <div class="prog-text" id="progCur"></div>
+        <div class="failed-list" id="progFailed" style="display:none;"></div>
+        <div class="row">
+            <button class="btn" id="progClose" type="button" style="display:none;">关闭</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const libraryId = '[(${selectedLibraryId})]';
+    const embyServerUrl = '[(${embyServerUrl})]';
+    const currentSortBy = '[(${sortBy})]';
+    const currentSortOrder = '[(${sortOrder})]';
+    const wantFlat = [(${wantFlat != null and wantFlat})];
+    const currentView = '[(${viewMode != null ? viewMode : "movie"})]';
+    const currentParentId = '[(${parentId})]';
+    const currentTags = '[(${selectedTags != null ? selectedTags : ""})]';
+    const currentExcludeTags = '[(${selectedExcludeTags != null ? selectedExcludeTags : ""})]';
+    const currentFavorite = [(${isFavorite != null and isFavorite})];
+    const currentPlayStatus = '[(${playStatus != null ? playStatus : ""})]';
+    const currentLimit = [(${limit})];
+
+    const SORT_OPTIONS = [
+        { key: 'CommunityRating', label: 'IMDb 评分', defaultOrder: 'Descending' },
+        { key: 'Resolution', label: '分辨率', defaultOrder: 'Descending' },
+        { key: 'DateCreated', label: '加入日期', defaultOrder: 'Descending' },
+        { key: 'PremiereDate', label: '发行日期', defaultOrder: 'Descending' },
+        { key: 'Size', label: '大小', defaultOrder: 'Descending' },
+        { key: 'Container', label: '媒体容器', defaultOrder: 'Ascending' },
+        { key: 'OfficialRating', label: '家长分级', defaultOrder: 'Ascending' },
+        { key: 'ProductionYear', label: '年份', defaultOrder: 'Descending' },
+        { key: 'CriticRating', label: '影评人评分', defaultOrder: 'Descending' },
+        { key: 'PlayCount', label: '播放', defaultOrder: 'Descending' },
+        { key: 'DatePlayed', label: '播放日期', defaultOrder: 'Descending' },
+        { key: 'Runtime', label: '播放时长', defaultOrder: 'Descending' },
+        { key: 'FileName', label: '文件名', defaultOrder: 'Ascending' },
+        { key: 'SortName', label: '标题', defaultOrder: 'Ascending' },
+        { key: 'TotalBitrate', label: '比特率', defaultOrder: 'Descending' }
+    ];
+
+    function buildMediaUrl(overrides) {
+        const params = new URLSearchParams();
+        params.set('libraryId', libraryId);
+        const view = overrides.view !== undefined ? overrides.view : currentView;
+        params.set('view', view);
+        const flat = overrides.flat !== undefined ? overrides.flat : (view === 'folder' ? '0' : '1');
+        if (view === 'folder' || flat === '0' || flat === 0) {
+            params.set('flat', '0');
+            const parent = overrides.parentId !== undefined ? overrides.parentId : currentParentId;
+            if (parent && parent !== libraryId) params.set('parentId', parent);
+        } else {
+            params.set('flat', '1');
+        }
+        const tags = overrides.tags !== undefined ? overrides.tags : currentTags;
+        if (tags) params.set('tags', tags);
+        const ex = overrides.excludeTags !== undefined ? overrides.excludeTags : currentExcludeTags;
+        if (ex) params.set('excludeTags', ex);
+        const fav = overrides.isFavorite !== undefined ? overrides.isFavorite : currentFavorite;
+        if (fav) params.set('isFavorite', 'true');
+        const play = overrides.playStatus !== undefined ? overrides.playStatus : currentPlayStatus;
+        if (play) params.set('playStatus', play);
+        params.set('limit', String(overrides.limit !== undefined ? overrides.limit : currentLimit));
+        params.set('sortBy', overrides.sortBy || currentSortBy || 'SortName');
+        params.set('sortOrder', overrides.sortOrder || currentSortOrder || 'Ascending');
+        if (overrides.startIndex !== undefined && overrides.startIndex > 0) {
+            params.set('startIndex', String(overrides.startIndex));
+        }
+        return '/media?' + params.toString();
+    }
+
+    (function initSortAndLimit() {
+        const sortBtn = document.getElementById('sortBtn');
+        const sortMenu = document.getElementById('sortMenu');
+        const sortBtnLabel = document.getElementById('sortBtnLabel');
+        const limitSelect = document.getElementById('limitSelect');
+        if (!sortBtn || !sortMenu) return;
+
+        const current = SORT_OPTIONS.find(function (o) { return o.key === currentSortBy; }) || SORT_OPTIONS.find(function (o) { return o.key === 'SortName'; });
+        sortBtnLabel.textContent = '按' + current.label + '排序';
+
+        SORT_OPTIONS.forEach(function (opt, idx) {
+            if (idx === 5 || idx === 8 || idx === 12) {
+                sortMenu.appendChild(document.createElement('hr'));
+            }
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.setAttribute('role', 'menuitem');
+            const active = opt.key === currentSortBy;
+            const mark = document.createElement('span');
+            mark.className = 'mark';
+            mark.textContent = active ? '✓' : '';
+            const label = document.createElement('span');
+            label.textContent = opt.label;
+            btn.appendChild(mark);
+            btn.appendChild(label);
+            if (active) {
+                const dir = document.createElement('span');
+                dir.className = 'dir';
+                dir.textContent = currentSortOrder === 'Descending' ? '↓' : '↑';
+                btn.appendChild(dir);
+            }
+            btn.addEventListener('click', function () {
+                let nextOrder = opt.defaultOrder;
+                if (opt.key === currentSortBy) {
+                    nextOrder = currentSortOrder === 'Descending' ? 'Ascending' : 'Descending';
+                }
+                window.location.href = buildMediaUrl({ sortBy: opt.key, sortOrder: nextOrder, startIndex: 0 });
+            });
+            sortMenu.appendChild(btn);
+        });
+
+        sortBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            const open = sortMenu.classList.toggle('show');
+            sortBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
+        document.addEventListener('click', function () {
+            sortMenu.classList.remove('show');
+            sortBtn.setAttribute('aria-expanded', 'false');
+        });
+        sortMenu.addEventListener('click', function (e) { e.stopPropagation(); });
+
+        if (limitSelect) {
+            limitSelect.addEventListener('change', function () {
+                document.querySelector('#filterForm input[name="startIndex"]').value = '0';
+                document.getElementById('filterForm').submit();
+            });
+        }
+    })();
+
+    /* 两个标签下拉框的搜索过滤 */
+    (function () {
+        function bindSearch(searchId, selectId) {
+            const search = document.getElementById(searchId);
+            const select = document.getElementById(selectId);
+            if (search && select) {
+                search.addEventListener('input', function () {
+                    const q = this.value.trim().toLowerCase();
+                    Array.from(select.options).forEach(function (opt, idx) {
+                        if (idx === 0) { opt.hidden = false; return; }
+                        const name = (opt.getAttribute('data-name') || opt.textContent || '').toLowerCase();
+                        opt.hidden = q && name.indexOf(q) === -1;
+                    });
+                });
+            }
+        }
+        bindSearch('tagSearch', 'tags');
+        bindSearch('excludeTagSearch', 'excludeTags');
+    })();
+
+    /* 进详情前保存滚动，返回列表后恢复 */
+    (function () {
+        const SCROLL_KEY = 'emby-fav-list-scroll:' + window.location.search;
+        try {
+            const saved = sessionStorage.getItem(SCROLL_KEY);
+            if (saved != null) {
+                const y = parseInt(saved, 10);
+                if (!isNaN(y)) {
+                    requestAnimationFrame(function () {
+                        window.scrollTo(0, y);
+                    });
+                }
+                sessionStorage.removeItem(SCROLL_KEY);
+            }
+        } catch (e) { /* ignore */ }
+
+        document.querySelectorAll('a.detail-link').forEach(function (a) {
+            a.addEventListener('click', function () {
+                try {
+                    sessionStorage.setItem(SCROLL_KEY, String(window.scrollY || window.pageYOffset || 0));
+                } catch (e) { /* ignore */ }
+            });
+        });
+    })();
+
+    /* 多选（含 Shift 范围选择） */
+    const selected = new Set();
+    const selInfo = document.getElementById('selInfo');
+    const moveBtn = document.getElementById('moveBtn');
+    const batchTagBtn = document.getElementById('batchTagBtn');
+    const batchFavBtn = document.getElementById('batchFavBtn');
+    const batchDelBtn = document.getElementById('batchDelBtn');
+    const cardChecks = Array.from(document.querySelectorAll('.card-check'));
+    let lastCheckIndex = -1;
+
+    cardChecks.forEach(function (c, index) {
+        c.setAttribute('data-index', String(index));
+    });
+
+    function updateSel() {
+        selInfo.textContent = '已选 ' + selected.size + ' 项';
+        moveBtn.disabled = selected.size === 0;
+        batchTagBtn.disabled = selected.size === 0;
+        batchFavBtn.disabled = selected.size === 0;
+        batchDelBtn.disabled = selected.size === 0;
+    }
+    function syncCard(check) {
+        const id = check.value;
+        const wrap = check.parentElement;
+        const card = wrap ? wrap.querySelector('.card') : null;
+        if (check.checked) {
+            selected.add(id);
+            if (card) card.classList.add('selected');
+        } else {
+            selected.delete(id);
+            if (card) card.classList.remove('selected');
+        }
+        updateSel();
+    }
+    function setCheckState(check, checked) {
+        if (!check) return;
+        check.checked = !!checked;
+        syncCard(check);
+    }
+    function applyRange(fromIdx, toIdx, checked) {
+        const from = Math.min(fromIdx, toIdx);
+        const to = Math.max(fromIdx, toIdx);
+        for (let i = from; i <= to; i++) {
+            setCheckState(cardChecks[i], checked);
+        }
+    }
+
+    cardChecks.forEach(function (c) {
+        // Shift 时在 mousedown 就拦住，避免浏览器先翻转终点勾子再被冲掉
+        c.addEventListener('mousedown', function (e) {
+            if (e.shiftKey && lastCheckIndex >= 0) {
+                e.preventDefault();
+            }
+        });
+        c.addEventListener('click', function (e) {
+            e.stopPropagation();
+            const index = parseInt(c.getAttribute('data-index'), 10);
+            if (Number.isNaN(index)) return;
+
+            if (e.shiftKey && lastCheckIndex >= 0) {
+                // 不 preventDefault：浏览器激活撤销会在处理函数返回后把勾子恢复到点击前(未勾)，
+                // 覆盖 applyRange 的设置。改为放任浏览器翻转，applyRange 统一覆盖为 true。
+                applyRange(lastCheckIndex, index, true);
+                const end = cardChecks[index];
+                setCheckState(end, true);
+                lastCheckIndex = index;
+                return;
+            }
+
+            // 普通单击：交给浏览器切换，change 同步
+            lastCheckIndex = index;
+        });
+        c.addEventListener('change', function () {
+            syncCard(c);
+        });
+    });
+    document.getElementById('selectAllBtn').addEventListener('click', function () {
+        cardChecks.forEach(function (c) { setCheckState(c, true); });
+        if (cardChecks.length) lastCheckIndex = cardChecks.length - 1;
+    });
+    document.getElementById('clearSelBtn').addEventListener('click', function () {
+        cardChecks.forEach(function (c) { setCheckState(c, false); });
+        lastCheckIndex = -1;
+    });
+    updateSel();
+
+    /* 已播放 / 未播放切换 */
+    document.querySelectorAll('.played-btn').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const id = btn.getAttribute('data-id');
+            const currentlyPlayed = btn.classList.contains('is-played')
+                || btn.getAttribute('data-played') === 'true';
+            const nextPlayed = !currentlyPlayed;
+            btn.disabled = true;
+            fetch('/api/media/' + id + '/played', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ played: nextPlayed })
+            }).then(r => r.json()).then(function (data) {
+                if (!data.success) {
+                    alert(data.message || '设置失败');
+                    return;
+                }
+                btn.setAttribute('data-played', nextPlayed ? 'true' : 'false');
+                if (nextPlayed) btn.classList.add('is-played');
+                else btn.classList.remove('is-played');
+            }).catch(function (err) {
+                alert('请求失败: ' + err.message);
+            }).finally(function () {
+                btn.disabled = false;
+            });
+        });
+    });
+
+    /* PotPlayer 播放（Emby 直传流 + potplayer:// 协议） */
+    const LAST_PLAYED_KEY = 'embyBrowseLastPlayedId';
+    function markJustPlayed(itemId) {
+        if (!itemId) return;
+        try { sessionStorage.setItem(LAST_PLAYED_KEY, itemId); } catch (e) { /* ignore */ }
+        document.querySelectorAll('.card.just-played').forEach(function (c) {
+            c.classList.remove('just-played');
+        });
+        const card = document.querySelector('.card[data-id="' + itemId + '"]');
+        if (card) card.classList.add('just-played');
+    }
+    function playInEmby(btn) {
+        markJustPlayed(btn.getAttribute('data-id'));
+        const url = btn.getAttribute('data-url');
+        if (url) window.open(url, '_blank');
+    }
+    window.playInEmby = playInEmby;
+    function openInPotPlayer(itemId) {
+        if (!itemId) return;
+        markJustPlayed(itemId);
+        fetch('/api/media/' + encodeURIComponent(itemId) + '/potplayer-url')
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!data.success) {
+                    alert(data.message || '获取播放地址失败');
+                    return;
+                }
+                console.log('[PotPlayer] streamUrl:', data.streamUrl);
+                console.log('[PotPlayer] potplayerUrl:', 'potplayer://' + data.streamUrl);
+                window.location.href = 'potplayer://' + data.streamUrl;
+            })
+            .catch(function (err) { alert('请求失败: ' + err.message); });
+    }
+    try { markJustPlayed(sessionStorage.getItem(LAST_PLAYED_KEY)); } catch (e) { /* ignore */ }
+
+    /* 收藏切换 */
+    document.querySelectorAll('.fav-btn').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const id = btn.getAttribute('data-id');
+            const nextFav = !btn.classList.contains('is-favorite');
+            btn.disabled = true;
+            fetch('/api/media/' + id + '/favorite', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ favorite: nextFav })
+            }).then(r => r.json()).then(function (data) {
+                if (!data.success) {
+                    alert(data.message || '设置失败');
+                    return;
+                }
+                if (nextFav) {
+                    btn.classList.add('is-favorite');
+                    btn.textContent = '♥';
+                } else {
+                    btn.classList.remove('is-favorite');
+                    btn.textContent = '♡';
+                }
+            }).catch(function (err) {
+                alert('请求失败: ' + err.message);
+            }).finally(function () {
+                btn.disabled = false;
+            });
+        });
+    });
+
+    /* 移动弹窗 - 文件浏览器 */
+    const moveMask = document.getElementById('moveMask');
+    const moveBreadcrumb = document.getElementById('moveBreadcrumb');
+    const moveDirList = document.getElementById('moveDirList');
+    const moveUpBtn = document.getElementById('moveUpBtn');
+    let browseCurrent = '';
+    let browseParent = null;
+    const MOVE_TARGET_KEY = 'emby-fav-move-target:' + (libraryId || 'default');
+
+    function loadRememberedTarget() {
+        try { return localStorage.getItem(MOVE_TARGET_KEY) || ''; }
+        catch (e) { return ''; }
+    }
+    function saveRememberedTarget(target) {
+        try { if (target) localStorage.setItem(MOVE_TARGET_KEY, target); }
+        catch (e) { /* ignore */ }
+    }
+
+    function renderBreadcrumb(path) {
+        moveBreadcrumb.innerHTML = '';
+        if (!path) { moveBreadcrumb.textContent = '(空)'; return; }
+        const parts = path.split('/').filter(function (p) { return p.length > 0; });
+        let acc = '';
+        const root = path.startsWith('/') ? '/' : '';
+        parts.forEach(function (part, i) {
+            if (i > 0) {
+                const sep = document.createElement('span');
+                sep.className = 'sep';
+                sep.textContent = '/';
+                moveBreadcrumb.appendChild(sep);
+            }
+            acc = acc ? acc + '/' + part : (root ? root + part : part);
+            const a = document.createElement('a');
+            a.textContent = part;
+            a.addEventListener('click', function () { browseTo(acc); });
+            moveBreadcrumb.appendChild(a);
+        });
+    }
+
+    function renderDirList(subdirs, current) {
+        moveDirList.innerHTML = '';
+        if (!subdirs || !subdirs.length) {
+            moveDirList.innerHTML = '<div class="move-dir-empty">（无子目录）</div>';
+            return;
+        }
+        subdirs.forEach(function (name) {
+            const item = document.createElement('div');
+            item.className = 'move-dir-item';
+            const icon = document.createElement('span');
+            icon.className = 'icon';
+            icon.textContent = '\u{1F4C1}';
+            const label = document.createElement('span');
+            label.textContent = name;
+            item.appendChild(icon);
+            item.appendChild(label);
+            const childPath = current.endsWith('/') ? current + name : current + '/' + name;
+            item.addEventListener('click', function () { browseTo(childPath); });
+            moveDirList.appendChild(item);
+        });
+    }
+
+    function browseTo(path) {
+        moveDirList.innerHTML = '<div class="move-dir-item">加载中…</div>';
+        fetch('/api/library/browse', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path: path })
+        }).then(function (r) { return r.json(); }).then(function (data) {
+            if (!data.success) {
+                moveDirList.innerHTML = '<div class="move-dir-empty">' + (data.message || '失败') + '</div>';
+                return;
+            }
+            browseCurrent = data.current;
+            browseParent = data.parent;
+            renderBreadcrumb(data.current);
+            renderDirList(data.subdirs, data.current);
+            moveUpBtn.disabled = !data.parent;
+        }).catch(function () {
+            moveDirList.innerHTML = '<div class="move-dir-empty">请求失败</div>';
+        });
+    }
+
+    moveBtn.addEventListener('click', function () {
+        moveMask.classList.add('show');
+        moveBreadcrumb.textContent = '加载中…';
+        moveDirList.innerHTML = '<div class="move-dir-item">加载中…</div>';
+        fetch('/api/library/browse', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ itemIds: Array.from(selected) })
+        }).then(function (r) { return r.json(); }).then(function (data) {
+            if (!data.success) {
+                moveBreadcrumb.textContent = data.message || '失败';
+                moveDirList.innerHTML = '<div class="move-dir-empty">' + (data.message || '失败') + '</div>';
+                return;
+            }
+            browseCurrent = data.current;
+            browseParent = data.parent;
+            renderBreadcrumb(data.current);
+            renderDirList(data.subdirs, data.current);
+            moveUpBtn.disabled = !data.parent;
+        }).catch(function () {
+            moveBreadcrumb.textContent = '请求失败';
+            moveDirList.innerHTML = '<div class="move-dir-empty">请求失败</div>';
+        });
+    });
+
+    moveUpBtn.addEventListener('click', function () {
+        if (browseParent) browseTo(browseParent);
+    });
+
+    document.getElementById('moveCancel').addEventListener('click', function () {
+        moveMask.classList.remove('show');
+    });
+
+    document.getElementById('moveConfirm').addEventListener('click', function () {
+        if (!browseCurrent) { alert('请先浏览到目标目录'); return; }
+        saveRememberedTarget(browseCurrent);
+        fetch('/api/move', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ itemIds: Array.from(selected), targetPath: browseCurrent })
+        }).then(r => r.json()).then(data => {
+            if (!data.success) { alert(data.message || '启动失败'); return; }
+            moveMask.classList.remove('show');
+            startProgress(data.taskId, '/api/move/', '已移动', 'failedFiles');
+        }).catch(e => alert('请求失败: ' + e.message));
+    });
+
+    /* 批量标签弹窗 */
+    const tagMask = document.getElementById('tagMask');
+    const batchTagOptions = document.getElementById('batchTagOptions');
+    const batchTagChips = document.getElementById('batchTagChips');
+    const newBatchTag = document.getElementById('newBatchTag');
+    const batchTagSearch = document.getElementById('batchTagSearch');
+    let customBatchTags = new Set();
+
+    function selectedBatchTags() {
+        const result = new Set(customBatchTags);
+        batchTagOptions.querySelectorAll('input[type="checkbox"]:checked').forEach(function (c) {
+            result.add(c.value);
+        });
+        return Array.from(result);
+    }
+    function renderBatchTagChips() {
+        batchTagChips.innerHTML = '';
+        selectedBatchTags().forEach(function (tag) {
+            const chip = document.createElement('span');
+            chip.className = 'tag-chip';
+            chip.textContent = tag;
+            if (customBatchTags.has(tag)) {
+                const remove = document.createElement('button');
+                remove.type = 'button';
+                remove.textContent = '×';
+                remove.title = '移除';
+                remove.addEventListener('click', function () {
+                    customBatchTags.delete(tag);
+                    renderBatchTagChips();
+                });
+                chip.appendChild(remove);
+            }
+            batchTagChips.appendChild(chip);
+        });
+    }
+    batchTagOptions.addEventListener('change', renderBatchTagChips);
+    batchTagSearch.addEventListener('input', function () {
+        const q = this.value.trim().toLowerCase();
+        batchTagOptions.querySelectorAll('.tag-option').forEach(function (option) {
+            const name = (option.getAttribute('data-name') || '').toLowerCase();
+            option.style.display = !q || name.indexOf(q) >= 0 ? 'flex' : 'none';
+        });
+    });
+    document.getElementById('addBatchTag').addEventListener('click', function () {
+        const tag = newBatchTag.value.trim();
+        if (!tag) return;
+        customBatchTags.add(tag);
+        newBatchTag.value = '';
+        renderBatchTagChips();
+    });
+    newBatchTag.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            document.getElementById('addBatchTag').click();
+        }
+    });
+    batchTagBtn.addEventListener('click', function () {
+        document.getElementById('tagSelectedCount').textContent = selected.size;
+        customBatchTags = new Set();
+        batchTagSearch.value = '';
+        batchTagOptions.querySelectorAll('.tag-option').forEach(function (option) {
+            option.style.display = 'flex';
+            option.querySelector('input').checked = false;
+        });
+        renderBatchTagChips();
+        tagMask.classList.add('show');
+    });
+    document.getElementById('tagCancel').addEventListener('click', function () {
+        tagMask.classList.remove('show');
+    });
+    document.getElementById('tagConfirm').addEventListener('click', function () {
+        const tagsToApply = selectedBatchTags();
+        if (!tagsToApply.length) {
+            alert('请至少选择或新增一个标签');
+            return;
+        }
+        const confirmBtn = document.getElementById('tagConfirm');
+        confirmBtn.disabled = true;
+        fetch('/api/tags/batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ itemIds: Array.from(selected), tags: tagsToApply })
+        }).then(r => r.json()).then(function (data) {
+            if (!data.success) {
+                alert(data.message || '启动批量打标签失败');
+                return;
+            }
+            tagMask.classList.remove('show');
+            startProgress(data.taskId, '/api/tags/batch/', '已处理', 'failedItems');
+        }).catch(e => alert('请求失败: ' + e.message))
+            .finally(function () { confirmBtn.disabled = false; });
+    });
+
+    /* 批量收藏 */
+    const favMask = document.getElementById('favMask');
+    batchFavBtn.addEventListener('click', function () {
+        document.getElementById('favSelectedCount').textContent = selected.size;
+        favMask.classList.add('show');
+    });
+    document.getElementById('favCancel').addEventListener('click', function () {
+        favMask.classList.remove('show');
+    });
+    function submitBatchFav(favorite) {
+        fetch('/api/favorites/batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ itemIds: Array.from(selected), favorite: favorite })
+        }).then(r => r.json()).then(function (data) {
+            if (!data.success) {
+                alert(data.message || '启动批量收藏失败');
+                return;
+            }
+            favMask.classList.remove('show');
+            startProgress(data.taskId, '/api/favorites/batch/',
+                favorite ? '已收藏' : '已取消', 'failedItems');
+        }).catch(function (err) { alert('请求失败: ' + err.message); });
+    }
+    document.getElementById('favAddConfirm').addEventListener('click', function () { submitBatchFav(true); });
+    document.getElementById('favRemoveConfirm').addEventListener('click', function () { submitBatchFav(false); });
+
+    /* 删除确认（批量 / 单条共用） */
+    const deleteMask = document.getElementById('deleteMask');
+    const deleteMsg = document.getElementById('deleteMsg');
+    const DELETE_WARN = '将永久删除文件、配套文件；独立文件夹会整夹删除，无法撤销。';
+    let pendingDelete = null;
+
+    function closeAllMoreMenus() {
+        document.querySelectorAll('.more-menu.show').forEach(function (m) { m.classList.remove('show'); });
+    }
+    function toggleMoreMenu(btn) {
+        const menu = btn.parentElement ? btn.parentElement.querySelector('.more-menu') : null;
+        if (!menu) return;
+        const open = menu.classList.contains('show');
+        closeAllMoreMenus();
+        if (!open) menu.classList.add('show');
+    }
+    function openDeleteConfirm(pending) {
+        pendingDelete = pending;
+        closeAllMoreMenus();
+        if (pending.mode === 'batch') {
+            deleteMsg.textContent = '将对 ' + pending.count + ' 项媒体执行删除。' + DELETE_WARN;
+        } else {
+            const name = pending.name ? '「' + pending.name + '」' : '该项';
+            deleteMsg.textContent = '即将删除 ' + name + '。' + DELETE_WARN;
+        }
+        deleteMask.classList.add('show');
+    }
+    function openSingleDelete(el) {
+        openDeleteConfirm({
+            mode: 'single',
+            itemId: el.getAttribute('data-id'),
+            name: el.getAttribute('data-name') || ''
+        });
+    }
+    window.toggleMoreMenu = toggleMoreMenu;
+    window.openSingleDelete = openSingleDelete;
+
+    const colMask = document.getElementById('colMask');
+    const colList = document.getElementById('colList');
+    let pendingColItemId = null;
+    function openAddToCollection(el) {
+        pendingColItemId = el.getAttribute('data-id');
+        closeAllMoreMenus();
+        colList.textContent = '加载中…';
+        colMask.classList.add('show');
+        fetch('/api/collections').then(function (r) { return r.json(); }).then(function (data) {
+            if (!data.success) {
+                colList.textContent = data.message || '加载失败';
+                return;
+            }
+            const cols = data.collections || [];
+            if (!cols.length) {
+                colList.textContent = '还没有合集';
+                return;
+            }
+            colList.innerHTML = '';
+            cols.forEach(function (c) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'col-item';
+                const thumb = document.createElement('div');
+                thumb.className = 'col-thumb';
+                const colId = c.Id || c.id;
+                const colName = c.Name || c.name || colId;
+                if (colId) thumb.style.backgroundImage = 'url(/api/image/' + encodeURIComponent(colId) + '?type=Primary&maxHeight=120)';
+                const name = document.createElement('span');
+                name.textContent = colName;
+                btn.appendChild(thumb);
+                btn.appendChild(name);
+                btn.addEventListener('click', function () {
+                    btn.disabled = true;
+                    fetch('/api/collections/' + encodeURIComponent(colId) + '/items', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ itemIds: [pendingColItemId] })
+                    }).then(function (r) { return r.json(); }).then(function (res) {
+                        if (!res.success) {
+                            alert(res.message || '添加失败');
+                            btn.disabled = false;
+                            return;
+                        }
+                        colMask.classList.remove('show');
+                    }).catch(function (err) {
+                        alert('请求失败: ' + err.message);
+                        btn.disabled = false;
+                    });
+                });
+                colList.appendChild(btn);
+            });
+        }).catch(function (err) {
+            colList.textContent = '请求失败: ' + err.message;
+        });
+    }
+    window.openAddToCollection = openAddToCollection;
+    document.getElementById('colCancel').addEventListener('click', function () {
+        colMask.classList.remove('show');
+        pendingColItemId = null;
+    });
+
+    document.addEventListener('click', function () { closeAllMoreMenus(); });
+
+    batchDelBtn.addEventListener('click', function () {
+        if (selected.size === 0) return;
+        openDeleteConfirm({ mode: 'batch', count: selected.size });
+    });
+    document.getElementById('deleteCancel').addEventListener('click', function () {
+        deleteMask.classList.remove('show');
+        pendingDelete = null;
+    });
+    document.getElementById('deleteConfirm').addEventListener('click', function () {
+        if (!pendingDelete) return;
+        const confirmBtn = document.getElementById('deleteConfirm');
+        confirmBtn.disabled = true;
+        if (pendingDelete.mode === 'batch') {
+            fetch('/api/media/batch-delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ itemIds: Array.from(selected) })
+            }).then(function (r) { return r.json(); }).then(function (data) {
+                if (!data.success) {
+                    alert(data.message || '启动批量删除失败');
+                    return;
+                }
+                deleteMask.classList.remove('show');
+                startProgress(data.taskId, '/api/media/batch-delete/', '已删除', 'failedItems');
+            }).catch(function (err) { alert('请求失败: ' + err.message); })
+                .finally(function () { confirmBtn.disabled = false; pendingDelete = null; });
+            return;
+        }
+        const itemId = pendingDelete.itemId;
+        fetch('/api/media/' + encodeURIComponent(itemId) + '/delete', { method: 'POST' })
+            .then(function (r) { return r.json(); }).then(function (data) {
+                if (!data.success) {
+                    alert(data.message || '删除失败');
+                    return;
+                }
+                deleteMask.classList.remove('show');
+                const wrap = document.querySelector('.more-btn[data-id="' + itemId + '"]');
+                const cardWrap = wrap ? wrap.closest('.card-wrap') : null;
+                if (cardWrap) {
+                    const check = cardWrap.querySelector('.card-check');
+                    if (check && selected.has(check.value)) {
+                        selected.delete(check.value);
+                        updateSel();
+                    }
+                    cardWrap.remove();
+                } else {
+                    location.reload();
+                }
+            }).catch(function (err) { alert('请求失败: ' + err.message); })
+            .finally(function () { confirmBtn.disabled = false; pendingDelete = null; });
+    });
+
+    /* 进度弹窗 */
+    const progMask = document.getElementById('progMask');
+    const progBar = document.getElementById('progFill');
+    const progText = document.getElementById('progText');
+    const progCur = document.getElementById('progCur');
+    const progFailed = document.getElementById('progFailed');
+    let progTimer = null;
+
+    function startProgress(taskId, apiBase, actionText, failedField) {
+        progMask.classList.add('show');
+        progBar.style.width = '0%';
+        progText.textContent = '准备中…';
+        progCur.textContent = '';
+        progFailed.style.display = 'none';
+        document.getElementById('progClose').style.display = 'none';
+        pollProgress(taskId, apiBase, actionText, failedField);
+    }
+    function pollProgress(taskId, apiBase, actionText, failedField) {
+        fetch(apiBase + taskId).then(r => r.json()).then(data => {
+            if (!data.success) { progText.textContent = '查询失败'; return; }
+            const total = data.total || 0;
+            const done = data.done || 0;
+            const pct = total > 0 ? Math.round(done * 100 / total) : 0;
+            progBar.style.width = pct + '%';
+            progText.textContent = actionText + ' ' + done + ' / ' + total + '，失败 ' + (data.failed || 0);
+            progCur.textContent = data.currentName ? ('当前: ' + data.currentName) : '';
+            if (data[failedField] && data[failedField].length) {
+                progFailed.style.display = 'block';
+                progFailed.textContent = data[failedField].join('\n');
+            }
+            if (data.status === 'running') {
+                progTimer = setTimeout(function () {
+                    pollProgress(taskId, apiBase, actionText, failedField);
+                }, 1000);
+            } else {
+                progText.textContent = '完成：' + done + ' / ' + total + '，失败 ' + (data.failed || 0)
+                    + '（' + ({done:'全部成功', partial:'部分失败', failed:'全部失败'}[data.status] || data.status) + '）';
+                document.getElementById('progClose').style.display = 'inline-block';
+            }
+        }).catch(e => { progText.textContent = '请求失败'; });
+    }
+    document.getElementById('progClose').addEventListener('click', function () {
+        progMask.classList.remove('show');
+        if (progTimer) clearTimeout(progTimer);
+        location.reload();
+    });
+</script>
+</body>
+</html>

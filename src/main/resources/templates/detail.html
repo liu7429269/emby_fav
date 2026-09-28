@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${item != null ? item.name : '详情'} + ' - Emby'">详情 - Emby</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <style>
+        :root {
+            --bg: #101010;
+            --text: #f0f0f0;
+            --muted: #a0a0a0;
+            --accent: #52b54b;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+        .hero {
+            position: relative;
+            min-height: 420px;
+            background: #1a1a1a center/cover no-repeat;
+        }
+        .hero::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg, rgba(16,16,16,.95) 18%, rgba(16,16,16,.75) 48%, rgba(16,16,16,.35) 100%),
+                        linear-gradient(0deg, #101010 0%, transparent 45%);
+        }
+        .topbar {
+            position: relative;
+            z-index: 2;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 18px 28px;
+        }
+        .back {
+            color: #fff;
+            text-decoration: none;
+            background: rgba(0,0,0,.45);
+            padding: 8px 12px;
+            border-radius: 4px;
+        }
+        .back:hover { background: rgba(0,0,0,.65); }
+        .top-search { display: flex; align-items: stretch; flex: 1; max-width: 520px; min-width: 200px; margin: 0 16px; }
+        .top-search select, .top-search input[type="search"] {
+            background: rgba(0,0,0,.55); border: 1px solid #444; color: #fff; height: 34px; font-size: .9rem;
+        }
+        .top-search select { border-radius: 6px 0 0 6px; padding: 0 8px; max-width: 150px; }
+        .top-search input[type="search"] { flex: 1; border-left: none; padding: 0 10px; min-width: 0; }
+        .top-search button { height: 34px; border: none; border-radius: 0 6px 6px 0; background: var(--accent); color: #fff; padding: 0 14px; cursor: pointer; font-weight: 600; }
+        .user a { color: var(--accent); text-decoration: none; margin-left: 10px; }
+        .content {
+            position: relative;
+            z-index: 2;
+            max-width: 1100px;
+            margin: -180px auto 0;
+            padding: 0 28px 48px;
+            display: grid;
+            grid-template-columns: 220px 1fr;
+            gap: 28px;
+        }
+        .poster {
+            width: 220px;
+            aspect-ratio: 2 / 3;
+            border-radius: 8px;
+            background: #2a2a2a center/cover no-repeat;
+            box-shadow: 0 16px 40px rgba(0,0,0,.55);
+        }
+        .meta h1 {
+            font-size: 2rem;
+            margin-bottom: 10px;
+            line-height: 1.25;
+        }
+        .row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            color: var(--muted);
+            margin-bottom: 16px;
+            font-size: .95rem;
+        }
+        .chip {
+            display: inline-block;
+            background: #242424;
+            border: 1px solid #333;
+            border-radius: 999px;
+            padding: 4px 10px;
+            margin: 0 6px 8px 0;
+            font-size: .82rem;
+            color: #ddd;
+        }
+        .section { margin-top: 18px; }
+        .section h2 {
+            font-size: 1.05rem;
+            margin-bottom: 8px;
+            color: #ddd;
+        }
+        .overview {
+            color: #ccc;
+            line-height: 1.7;
+            white-space: pre-wrap;
+        }
+        .fav { color: #ffd56a; }
+        .play-btn {
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            padding: 9px 16px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: .95rem;
+            text-decoration: none;
+            display: inline-block;
+            margin-right: 10px;
+            margin-bottom: 8px;
+        }
+        .play-btn:hover { filter: brightness(1.1); }
+        .play-btn.secondary {
+            background: #2a2a2a;
+            border: 1px solid #444;
+        }
+        .play-btn.secondary:hover { background: #333; filter: none; }
+        .play-btn.danger {
+            background: #c62828;
+            border: 1px solid #c62828;
+        }
+        .play-btn.danger:hover { background: #d32f2f; filter: none; }
+        .modal .btn.danger { background: #c62828; }
+        .play-btn.fav-btn { background: #2a2a2a; border: 1px solid #444; color: rgba(255,255,255,.85); display: inline-flex; align-items: center; gap: 6px; }
+        .play-btn.fav-btn:hover { background: #333; filter: none; }
+        .play-btn.fav-btn.is-favorite { color: #ff4757; border-color: #ff4757; }
+        .play-btn.played-toggle-btn { background: #2a2a2a; border: 1px solid #444; color: rgba(255,255,255,.85); display: inline-flex; align-items: center; gap: 6px; }
+        .play-btn.played-toggle-btn:hover { background: #333; filter: none; }
+        .play-btn.played-toggle-btn.is-played { background: rgba(82,181,75,.92); border-color: rgba(82,181,75,.92); color: #fff; }
+        .play-btn .btn-icon { font-size: 1.15em; line-height: 1; }
+        .play-btn .btn-label { font-size: .95rem; }
+        .play-btn.pot-btn { background: rgba(52, 120, 200, .92); border: 1px solid rgba(52, 120, 200, .92); color: #fff; }
+        .play-btn.pot-btn:hover { background: rgba(72, 140, 220, .95); filter: none; }
+        .actions { margin-bottom: 8px; }
+        .info-lines { display:flex; flex-direction:column; gap:4px; color:var(--muted); font-size:.92rem; margin-bottom:14px; }
+        .info-lines .info-label { display:inline-block; width:2.5em; color:#888; }
+        .media-info { background:#181818; border:1px solid #333; border-radius:6px; padding:10px 12px; }
+        .mi-path { font-family:ui-monospace,Consolas,monospace; font-size:.82rem; word-break:break-all; color:#cfcfcf; margin-bottom:6px; }
+        .mi-meta { display:flex; flex-wrap:wrap; gap:14px; color:var(--muted); font-size:.85rem; }
+        .move-breadcrumb {
+            background: #121212;
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 8px 10px;
+            font-size: .82rem;
+            word-break: break-all;
+            line-height: 1.5;
+            max-height: 60px;
+            overflow-y: auto;
+        }
+        .move-breadcrumb a { color: var(--accent); cursor: pointer; text-decoration: none; }
+        .move-breadcrumb a:hover { text-decoration: underline; }
+        .move-breadcrumb .sep { color: #555; margin: 0 3px; }
+        .move-dir-list {
+            background: #121212;
+            border: 1px solid #333;
+            border-radius: 6px;
+            max-height: 240px;
+            overflow-y: auto;
+            margin-bottom: 8px;
+        }
+        .move-dir-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid #1e1e1e;
+            font-size: .88rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .move-dir-item:hover { background: #1e2a3a; }
+        .move-dir-item:last-child { border-bottom: none; }
+        .move-dir-item .icon { color: var(--accent); font-size: 1rem; }
+        .move-dir-empty { padding: 16px; text-align: center; color: #666; font-size: .82rem; }
+        .modal-mask {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,.65);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-mask.show { display: flex; }
+        .modal {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 10px;
+            padding: 24px;
+            width: 460px;
+            max-width: 92vw;
+            max-height: 86vh;
+            overflow: auto;
+        }
+        .modal h2 { font-size: 1.2rem; margin-bottom: 16px; }
+        .modal label { display: block; color: var(--muted); font-size: .82rem; margin: 12px 0 6px; }
+        .modal input, .modal select {
+            width: 100%;
+            background: #121212;
+            border: 1px solid #333;
+            color: var(--text);
+            padding: 9px 10px;
+            border-radius: 5px;
+            font-size: .95rem;
+        }
+        .modal .row { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; flex-wrap: wrap; }
+        .modal .btn {
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            padding: 8px 14px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        .modal .btn.secondary {
+            background: #2a2a2a;
+            border: 1px solid #444;
+        }
+        .progress-bar {
+            height: 10px;
+            background: #2a2a2a;
+            border-radius: 5px;
+            overflow: hidden;
+            margin: 12px 0;
+        }
+        .progress-bar > div {
+            height: 100%;
+            background: var(--accent);
+            width: 0;
+            transition: width .3s;
+        }
+        .prog-text { color: var(--muted); font-size: .88rem; word-break: break-all; }
+        .failed-list {
+            margin-top: 10px;
+            max-height: 140px;
+            overflow: auto;
+            background: #121212;
+            border: 1px solid #333;
+            border-radius: 5px;
+            padding: 8px 10px;
+            font-size: .82rem;
+            color: #ff9a9a;
+        }
+        .tag-add {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+        .tag-add input {
+            flex: 1;
+            min-width: 160px;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            color: var(--text);
+            padding: 8px 10px;
+            border-radius: 5px;
+        }
+        .tag-add button {
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            padding: 8px 16px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        .tag-msg { color: var(--muted); font-size: .85rem; margin-top: 6px; }
+        .tag-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 4px 4px 10px;
+        }
+        .tag-x {
+            background: rgba(255,255,255,.15);
+            color: #fff;
+            border: none;
+            border-radius: 50%;
+            width: 18px;
+            height: 18px;
+            line-height: 16px;
+            text-align: center;
+            cursor: pointer;
+            font-size: .85rem;
+            padding: 0;
+        }
+        .tag-x:hover { background: #e53935; }
+        @media (max-width: 720px) {
+            .content { grid-template-columns: 1fr; margin-top: -80px; }
+            .poster { width: 160px; }
+        }
+        .chapters-wrap {
+            position: relative;
+            z-index: 2;
+            max-width: 1100px;
+            margin: 0 auto 48px;
+            padding: 0 28px;
+        }
+        .chapters h2 {
+            font-size: 1.05rem;
+            margin-bottom: 14px;
+            color: #ddd;
+        }
+        .chapter-row {
+            display: flex;
+            gap: 14px;
+            overflow-x: auto;
+            padding-bottom: 8px;
+        }
+        .chapter-row::-webkit-scrollbar { height: 8px; }
+        .chapter-row::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
+        .chapter-card {
+            flex: 0 0 168px;
+            width: 168px;
+        }
+        .chapter-thumb {
+            position: relative;
+            width: 168px;
+            height: 94px;
+            border-radius: 6px;
+            overflow: hidden;
+            background: #1a1a1a;
+        }
+        .chapter-thumb.no-img::after {
+            content: "▶";
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 1.4rem;
+            background: radial-gradient(circle at center, #3a8f3a 0%, #1a1a1a 70%);
+        }
+        .chapter-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        .chapter-name {
+            margin-top: 8px;
+            font-size: .82rem;
+            color: #ddd;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            text-align: center;
+        }
+        .chapter-time {
+            font-size: .75rem;
+            color: var(--muted);
+            text-align: center;
+            margin-top: 2px;
+        }
+    </style>
+</head>
+<body>
+<div class="hero"
+     th:style="${item != null} ? |background-image:url(/api/image/${item.id}?type=Backdrop&amp;maxHeight=720)| : ''">
+    <div class="topbar">
+        <a class="back"
+           th:href="${libraryId != null} ? @{/media(libraryId=${libraryId}, parentId=${parentId}, flat=${flat}, tags=${selectedTags}, excludeTags=${selectedExcludeTags}, isFavorite=${isFavorite}, playStatus=${playStatus}, startIndex=${startIndex}, limit=${limit}, sortBy=${sortBy}, sortOrder=${sortOrder})} : @{/libraries}">← 返回</a>
+        <form class="top-search" action="/search" method="get">
+            <select name="scope">
+                <option value="all" th:selected="${searchScope == null or searchScope == 'all'}">全局</option>
+                <option th:each="lib : ${libraries}"
+                        th:value="${lib.id}"
+                        th:text="${lib.name}"
+                        th:selected="${searchScope == lib.id}">库</option>
+            </select>
+            <input type="search" name="q" placeholder="搜索媒体…" required>
+            <button type="submit">搜索</button>
+        </form>
+        <div class="user">
+            <span th:text="${userName}">用户</span>
+            <a href="/logout">退出</a>
+        </div>
+    </div>
+</div>
+
+<div class="content" th:if="${item != null}">
+    <div class="poster"
+         th:style="|background-image:url(/api/image/${item.id}?type=Primary&amp;maxHeight=600)|"></div>
+    <div class="meta">
+        <h1 th:text="${item.name}">标题</h1>
+        <div class="row">
+            <span th:if="${item.productionYear != null}" th:text="${item.productionYear}">年份</span>
+            <span th:if="${item.type != null}" th:text="${item.type}">类型</span>
+            <span th:if="${item.communityRating != null}" th:text="'评分 ' + ${item.communityRating}">评分</span>
+            <span class="fav" th:if="${item.userDataInfo != null and item.userDataInfo.isFavorite == true}">★ 最爱</span>
+        </div>
+
+        <div class="info-lines" th:if="${item.runtimeText != null or item.videoSummary != null or item.audioSummary != null}">
+            <div th:if="${item.runtimeText != null}"><span class="info-label">时长</span> <span th:text="${item.runtimeText}">1m</span></div>
+            <div th:if="${item.videoSummary != null}"><span class="info-label">视频</span> <span th:text="${item.videoSummary}">4K H264</span></div>
+            <div th:if="${item.audioSummary != null}"><span class="info-label">音频</span> <span th:text="${item.audioSummary}">AAC stereo</span></div>
+        </div>
+
+        <div class="actions">
+            <a class="play-btn" target="_blank" id="detailEmbyPlay"
+               th:href="@{/web/index.html(playItemId=${item.id})}"
+               th:data-id="${item.id}">▶ 在 Emby 中播放</a>
+            <button type="button" class="play-btn pot-btn" id="detailPotBtn"
+                    th:data-id="${item.id}"
+                    title="PotPlayer 播放（需本机注册 potplayer:// 协议）">P PotPlayer</button>
+            <button type="button" class="play-btn fav-btn" id="detailFavBtn"
+                    th:data-id="${item.id}"
+                    th:classappend="${item.userDataInfo != null and item.userDataInfo.isFavorite == true} ? ' is-favorite'"
+                    th:data-fav="${item.userDataInfo != null and item.userDataInfo.isFavorite == true}">
+                <span class="btn-icon" th:text="${item.userDataInfo != null and item.userDataInfo.isFavorite == true} ? '♥' : '♡'">♥</span><span class="btn-label">收藏</span>
+            </button>
+            <button type="button" class="play-btn played-toggle-btn" id="detailPlayedBtn"
+                    th:data-id="${item.id}"
+                    th:classappend="${item.userDataInfo != null and item.userDataInfo.played == true} ? ' is-played'"
+                    th:data-played="${item.userDataInfo != null and item.userDataInfo.played == true}">
+                <span class="btn-icon">✓</span><span class="btn-label" th:text="${item.userDataInfo != null and item.userDataInfo.played == true} ? '已播放' : '标记已播放'">已播放</span>
+            </button>
+            <button type="button" class="play-btn secondary" id="moveBtn">移动到新目录</button>
+            <button type="button" class="play-btn danger" id="detailDelBtn"
+                    th:data-id="${item.id}"
+                    th:data-name="${item.name}">删除</button>
+        </div>
+
+        <div class="section">
+            <h2>标签</h2>
+            <span class="chip tag-chip" th:each="t : ${item.tags}">
+                <span th:text="${t}">标签</span>
+                <button type="button" class="tag-x" th:data-tag="${t}" th:data-id="${item.id}" title="删除标签">×</button>
+            </span>
+            <span class="chip" th:if="${item.tags == null or item.tags.isEmpty()}" style="color:#888">暂无标签</span>
+            <div class="tag-add">
+                <input type="text" id="newTag" placeholder="输入标签名（可新创建）" list="tagList" autocomplete="off">
+                <datalist id="tagList">
+                    <option th:each="t : ${tags}" th:value="${t.name}"></option>
+                </datalist>
+                <button type="button" id="addTagBtn">添加标签</button>
+            </div>
+            <div class="tag-msg" id="tagMsg"></div>
+        </div>
+
+        <div class="section" th:if="${item.genres != null and !item.genres.isEmpty()}">
+            <h2>类型</h2>
+            <span class="chip" th:each="g : ${item.genres}" th:text="${g}">类型</span>
+        </div>
+
+        <div class="section">
+            <h2>简介</h2>
+            <p class="overview"
+               th:text="${item.overview != null and !item.overview.isEmpty()} ? ${item.overview} : '暂无简介'">简介</p>
+        </div>
+
+        <div class="section" th:if="${item.primaryMediaSource != null or item.path != null}">
+            <h2>媒体信息</h2>
+            <div class="media-info">
+                <div class="mi-path" th:if="${item.resolvePath() != null}" th:text="${item.resolvePath()}">/path/file.mp4</div>
+                <div class="mi-meta">
+                    <span th:if="${item.primaryMediaSource != null and item.primaryMediaSource.container != null}" th:text="${item.primaryMediaSource.container}">MP4</span>
+                    <span th:if="${item.sizeText != null}" th:text="${item.sizeText}">294 MB</span>
+                    <span th:if="${item.primaryMediaSource != null and item.primaryMediaSource.dateCreated != null}" th:text="'已添加 ' + ${item.primaryMediaSource.dateCreated}">已添加 ...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="chapters-wrap"
+     th:if="${item != null and item.chapters != null and !item.chapters.isEmpty()}">
+    <section class="chapters">
+        <h2>章节</h2>
+        <div class="chapter-row">
+            <div class="chapter-card" th:each="ch, iter : ${item.chapters}">
+                <div class="chapter-thumb">
+                    <img th:src="@{/api/image/{id}(id=${item.id}, type=Chapter, index=${iter.index}, maxHeight=180)}"
+                         alt=""
+                         onerror="this.style.display='none'; this.parentElement.classList.add('no-img');">
+                </div>
+                <div class="chapter-name"
+                     th:text="${ch.name != null and !ch.name.isEmpty()} ? ${ch.name} : ('章节 ' + ${iter.count})">章节 1</div>
+                <div class="chapter-time" th:text="${ch.startTimeText}">0:00</div>
+            </div>
+        </div>
+    </section>
+</div>
+
+<!-- 移动弹窗 -->
+<div class="modal-mask" id="moveMask">
+    <div class="modal">
+        <h2>移动到新目录</h2>
+        <label>当前目录</label>
+        <div id="moveBreadcrumb" class="move-breadcrumb">加载中…</div>
+        <label>子目录（点击进入）</label>
+        <div id="moveDirList" class="move-dir-list"><div class="move-dir-item">加载中…</div></div>
+        <div class="row">
+            <button class="btn secondary" id="moveUpBtn" type="button">上级目录</button>
+            <button class="btn secondary" id="moveCancel" type="button">取消</button>
+            <button class="btn" id="moveConfirm" type="button">选择此目录</button>
+        </div>
+    </div>
+</div>
+
+<!-- 删除确认弹窗 -->
+<div class="modal-mask" id="deleteMask">
+    <div class="modal">
+        <h2>确认删除</h2>
+        <div class="prog-text" id="deleteMsg">将永久删除文件、配套文件；独立文件夹会整夹删除，无法撤销。</div>
+        <div class="row">
+            <button class="btn secondary" id="deleteCancel" type="button">取消</button>
+            <button class="btn danger" id="deleteConfirm" type="button">确认删除</button>
+        </div>
+    </div>
+</div>
+
+<!-- 进度弹窗 -->
+<div class="modal-mask" id="progMask">
+    <div class="modal">
+        <h2>移动进度</h2>
+        <div class="progress-bar"><div id="progFill"></div></div>
+        <div class="prog-text" id="progText">准备中…</div>
+        <div class="prog-text" id="progCur"></div>
+        <div class="failed-list" id="progFailed" style="display:none;"></div>
+        <div class="row">
+            <button class="btn" id="progClose" type="button" style="display:none;">关闭</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function () {
+        const btn = document.getElementById('addTagBtn');
+        const input = document.getElementById('newTag');
+        const msg = document.getElementById('tagMsg');
+        const itemId = '[(${item != null ? item.id : ""})]';
+        const libraryId = '[(${libraryId != null ? libraryId : ""})]';
+        if (!btn) return;
+        btn.addEventListener('click', function () {
+            const tag = input.value.trim();
+            if (!tag) { msg.textContent = '请输入标签名'; return; }
+            msg.textContent = '添加中…';
+            fetch('/api/media/' + itemId + '/tags', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tag: tag })
+            }).then(r => r.json()).then(data => {
+                if (data.success) {
+                    msg.textContent = data.message || '已添加';
+                    setTimeout(function () { location.reload(); }, 600);
+                } else {
+                    msg.textContent = data.message || '添加失败';
+                }
+            }).catch(e => { msg.textContent = '请求失败: ' + e.message; });
+        });
+        input.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') { e.preventDefault(); btn.click(); }
+        });
+        // 删除标签
+        document.querySelectorAll('.tag-x').forEach(function (x) {
+            x.addEventListener('click', function () {
+                const tag = this.getAttribute('data-tag');
+                const id = this.getAttribute('data-id');
+                if (!confirm('确认删除标签「' + tag + '」？')) return;
+                msg.textContent = '删除中…';
+                fetch('/api/media/' + id + '/tags/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tag: tag })
+                }).then(r => r.json()).then(data => {
+                    if (data.success) {
+                        msg.textContent = data.message || '已删除';
+                        setTimeout(function () { location.reload(); }, 500);
+                    } else {
+                        msg.textContent = data.message || '删除失败';
+                    }
+                }).catch(e => { msg.textContent = '请求失败: ' + e.message; });
+            });
+        });
+
+        /* PotPlayer 播放 */
+        const LAST_PLAYED_KEY = 'embyBrowseLastPlayedId';
+        function markJustPlayed(itemId) {
+            if (!itemId) return;
+            try { sessionStorage.setItem(LAST_PLAYED_KEY, itemId); } catch (e) { /* ignore */ }
+        }
+        const detailEmbyPlay = document.getElementById('detailEmbyPlay');
+        if (detailEmbyPlay) {
+            detailEmbyPlay.addEventListener('click', function () {
+                markJustPlayed(detailEmbyPlay.getAttribute('data-id'));
+            });
+        }
+        const detailPotBtn = document.getElementById('detailPotBtn');
+        if (detailPotBtn) {
+            detailPotBtn.addEventListener('click', function () {
+                const id = detailPotBtn.getAttribute('data-id');
+                if (!id) return;
+                markJustPlayed(id);
+                detailPotBtn.disabled = true;
+                fetch('/api/media/' + encodeURIComponent(id) + '/potplayer-url')
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        if (!data.success) { alert(data.message || '获取播放地址失败'); return; }
+                        console.log('[PotPlayer] streamUrl:', data.streamUrl);
+                        console.log('[PotPlayer] potplayerUrl:', 'potplayer://' + data.streamUrl);
+                        window.location.href = 'potplayer://' + data.streamUrl;
+                    })
+                    .catch(function (err) { alert('请求失败: ' + err.message); })
+                    .finally(function () { detailPotBtn.disabled = false; });
+            });
+        }
+
+        /* 收藏切换 */
+        const detailFavBtn = document.getElementById('detailFavBtn');
+        if (detailFavBtn) {
+            detailFavBtn.addEventListener('click', function () {
+                const id = detailFavBtn.getAttribute('data-id');
+                const nextFav = !detailFavBtn.classList.contains('is-favorite');
+                detailFavBtn.disabled = true;
+                fetch('/api/media/' + id + '/favorite', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ favorite: nextFav })
+                }).then(r => r.json()).then(function (data) {
+                    if (!data.success) { alert(data.message || '设置失败'); return; }
+                    const icon = detailFavBtn.querySelector('.btn-icon');
+                    if (nextFav) {
+                        detailFavBtn.classList.add('is-favorite');
+                        if (icon) icon.textContent = '♥';
+                    } else {
+                        detailFavBtn.classList.remove('is-favorite');
+                        if (icon) icon.textContent = '♡';
+                    }
+                }).catch(function (err) { alert('请求失败: ' + err.message); })
+                  .finally(function () { detailFavBtn.disabled = false; });
+            });
+        }
+
+        /* 已播放切换 */
+        const detailPlayedBtn = document.getElementById('detailPlayedBtn');
+        if (detailPlayedBtn) {
+            detailPlayedBtn.addEventListener('click', function () {
+                const id = detailPlayedBtn.getAttribute('data-id');
+                const currentlyPlayed = detailPlayedBtn.classList.contains('is-played')
+                    || detailPlayedBtn.getAttribute('data-played') === 'true';
+                const nextPlayed = !currentlyPlayed;
+                detailPlayedBtn.disabled = true;
+                fetch('/api/media/' + id + '/played', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ played: nextPlayed })
+                }).then(r => r.json()).then(function (data) {
+                    if (!data.success) { alert(data.message || '设置失败'); return; }
+                    detailPlayedBtn.setAttribute('data-played', nextPlayed ? 'true' : 'false');
+                    const label = detailPlayedBtn.querySelector('.btn-label');
+                    if (nextPlayed) {
+                        detailPlayedBtn.classList.add('is-played');
+                        if (label) label.textContent = '已播放';
+                    } else {
+                        detailPlayedBtn.classList.remove('is-played');
+                        if (label) label.textContent = '标记已播放';
+                    }
+                }).catch(function (err) { alert('请求失败: ' + err.message); })
+                  .finally(function () { detailPlayedBtn.disabled = false; });
+            });
+        }
+
+        /* 移动到新目录 - 文件浏览器 */
+        const moveBtn = document.getElementById('moveBtn');
+        const moveMask = document.getElementById('moveMask');
+        const moveBreadcrumb = document.getElementById('moveBreadcrumb');
+        const moveDirList = document.getElementById('moveDirList');
+        const moveUpBtn = document.getElementById('moveUpBtn');        let browseCurrent = '';
+        let browseParent = null;
+        const MOVE_TARGET_KEY = 'emby-fav-move-target:' + (libraryId || 'default');
+
+        function loadRememberedTarget() {
+            try { return localStorage.getItem(MOVE_TARGET_KEY) || ''; }
+            catch (e) { return ''; }
+        }
+        function saveRememberedTarget(target) {
+            try { if (target) localStorage.setItem(MOVE_TARGET_KEY, target); }
+            catch (e) { /* ignore */ }
+        }
+
+        function renderBreadcrumb(path) {
+            moveBreadcrumb.innerHTML = '';
+            if (!path) { moveBreadcrumb.textContent = '(空)'; return; }
+            const parts = path.split('/').filter(function (p) { return p.length > 0; });
+            let acc = '';
+            const root = path.startsWith('/') ? '/' : '';
+            parts.forEach(function (part, i) {
+                if (i > 0) {
+                    const sep = document.createElement('span');
+                    sep.className = 'sep';
+                    sep.textContent = '/';
+                    moveBreadcrumb.appendChild(sep);
+                }
+                acc = acc ? acc + '/' + part : (root ? root + part : part);
+                const a = document.createElement('a');
+                a.textContent = part;
+                a.addEventListener('click', function () { browseTo(acc); });
+                moveBreadcrumb.appendChild(a);
+            });
+        }
+
+        function renderDirList(subdirs, current) {
+            moveDirList.innerHTML = '';
+            if (!subdirs || !subdirs.length) {
+                moveDirList.innerHTML = '<div class="move-dir-empty">（无子目录）</div>';
+                return;
+            }
+            subdirs.forEach(function (name) {
+                const item = document.createElement('div');
+                item.className = 'move-dir-item';
+                const icon = document.createElement('span');
+                icon.className = 'icon';
+                icon.textContent = '\u{1F4C1}';
+                const label = document.createElement('span');
+                label.textContent = name;
+                item.appendChild(icon);
+                item.appendChild(label);
+                const childPath = current.endsWith('/') ? current + name : current + '/' + name;
+                item.addEventListener('click', function () { browseTo(childPath); });
+                moveDirList.appendChild(item);
+            });
+        }
+
+        function browseTo(path) {
+            moveDirList.innerHTML = '<div class="move-dir-item">加载中…</div>';
+            fetch('/api/library/browse', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path: path })
+            }).then(function (r) { return r.json(); }).then(function (data) {
+                if (!data.success) {
+                    moveDirList.innerHTML = '<div class="move-dir-empty">' + (data.message || '失败') + '</div>';
+                    return;
+                }
+                browseCurrent = data.current;
+                browseParent = data.parent;
+                renderBreadcrumb(data.current);
+                renderDirList(data.subdirs, data.current);
+                moveUpBtn.disabled = !data.parent;
+            }).catch(function () {
+                moveDirList.innerHTML = '<div class="move-dir-empty">请求失败</div>';
+            });
+        }
+
+        moveBtn.addEventListener('click', function () {
+            moveMask.classList.add('show');
+            moveBreadcrumb.textContent = '加载中…';
+            moveDirList.innerHTML = '<div class="move-dir-item">加载中…</div>';
+            fetch('/api/library/browse', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ itemIds: [itemId] })
+            }).then(function (r) { return r.json(); }).then(function (data) {
+                if (!data.success) {
+                    moveBreadcrumb.textContent = data.message || '失败';
+                    moveDirList.innerHTML = '<div class="move-dir-empty">' + (data.message || '失败') + '</div>';
+                    return;
+                }
+                browseCurrent = data.current;
+                browseParent = data.parent;
+                renderBreadcrumb(data.current);
+                renderDirList(data.subdirs, data.current);
+                moveUpBtn.disabled = !data.parent;
+            }).catch(function () {
+                moveBreadcrumb.textContent = '请求失败';
+                moveDirList.innerHTML = '<div class="move-dir-empty">请求失败</div>';
+            });
+        });
+
+        moveUpBtn.addEventListener('click', function () {
+            if (browseParent) browseTo(browseParent);
+        });
+
+        document.getElementById('moveCancel').addEventListener('click', function () {
+            moveMask.classList.remove('show');
+        });
+
+        document.getElementById('moveConfirm').addEventListener('click', function () {
+            if (!browseCurrent) { alert('请先浏览到目标目录'); return; }
+            saveRememberedTarget(browseCurrent);
+            fetch('/api/move', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ itemIds: [itemId], targetPath: browseCurrent })
+            }).then(r => r.json()).then(data => {
+                if (!data.success) { alert(data.message || '启动失败'); return; }
+                moveMask.classList.remove('show');
+                startProgress(data.taskId);
+            }).catch(e => alert('请求失败: ' + e.message));
+        });
+
+        const progMask = document.getElementById('progMask');
+        const progBar = document.getElementById('progFill');
+        const progText = document.getElementById('progText');
+        const progCur = document.getElementById('progCur');
+        const progFailed = document.getElementById('progFailed');
+        let progTimer = null;
+
+        function startProgress(taskId) {
+            progMask.classList.add('show');
+            progBar.style.width = '0%';
+            progText.textContent = '准备中…';
+            progCur.textContent = '';
+            progFailed.style.display = 'none';
+            document.getElementById('progClose').style.display = 'none';
+            pollProgress(taskId);
+        }
+        function pollProgress(taskId) {
+            fetch('/api/move/' + taskId).then(r => r.json()).then(data => {
+                if (!data.success) { progText.textContent = '查询失败'; return; }
+                const total = data.total || 0;
+                const done = data.done || 0;
+                const pct = total > 0 ? Math.round(done * 100 / total) : 0;
+                progBar.style.width = pct + '%';
+                progText.textContent = '已移动 ' + done + ' / ' + total + '，失败 ' + (data.failed || 0);
+                progCur.textContent = data.currentName ? ('当前: ' + data.currentName) : '';
+                if (data.failedFiles && data.failedFiles.length) {
+                    progFailed.style.display = 'block';
+                    progFailed.textContent = data.failedFiles.join('\n');
+                }
+                if (data.status === 'running') {
+                    progTimer = setTimeout(function () { pollProgress(taskId); }, 1000);
+                } else {
+                    progText.textContent = '完成：' + done + ' / ' + total + '，失败 ' + (data.failed || 0)
+                        + '（' + ({done:'全部成功', partial:'部分失败', failed:'全部失败'}[data.status] || data.status) + '）';
+                    document.getElementById('progClose').style.display = 'inline-block';
+                }
+            }).catch(function () { progText.textContent = '请求失败'; });
+        }
+        document.getElementById('progClose').addEventListener('click', function () {
+            progMask.classList.remove('show');
+            if (progTimer) clearTimeout(progTimer);
+            location.reload();
+        });
+    })();
+
+    (function () {
+        const delBtn = document.getElementById('detailDelBtn');
+        const deleteMask = document.getElementById('deleteMask');
+        const deleteMsg = document.getElementById('deleteMsg');
+        if (!delBtn || !deleteMask) return;
+        const itemId = delBtn.getAttribute('data-id');
+        const itemName = delBtn.getAttribute('data-name') || '';
+        const backLink = document.querySelector('a.back');
+        const backHref = backLink ? backLink.getAttribute('href') : '/libraries';
+        delBtn.addEventListener('click', function () {
+            const name = itemName ? '「' + itemName + '」' : '该项';
+            deleteMsg.textContent = '即将删除 ' + name + '。将永久删除文件、配套文件；独立文件夹会整夹删除，无法撤销。';
+            deleteMask.classList.add('show');
+        });
+        document.getElementById('deleteCancel').addEventListener('click', function () {
+            deleteMask.classList.remove('show');
+        });
+        document.getElementById('deleteConfirm').addEventListener('click', function () {
+            const confirmBtn = document.getElementById('deleteConfirm');
+            confirmBtn.disabled = true;
+            fetch('/api/media/' + encodeURIComponent(itemId) + '/delete', { method: 'POST' })
+                .then(function (r) { return r.json(); }).then(function (data) {
+                    if (!data.success) {
+                        alert(data.message || '删除失败');
+                        return;
+                    }
+                    window.location.href = backHref || '/libraries';
+                }).catch(function (err) { alert('请求失败: ' + err.message); })
+                .finally(function () { confirmBtn.disabled = false; });
+        });
+    })();
+</script>
+</body>
+</html>
