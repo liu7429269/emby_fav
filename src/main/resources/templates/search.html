@@ -49,13 +49,73 @@
         .play-btn { right: 40px; background: rgba(82,181,75,.85); }
         .pot-btn { right: 72px; background: rgba(52,120,200,.88); font-size: .65rem; font-weight: 700; }
         .more-btn { right: 8px; background: rgba(0,0,0,.65); font-weight: 700; z-index: 5; }
+        .card-wrap .dir-btn {
+            position: absolute; right: 8px; bottom: 40px; width: 28px; height: 28px; border: none; border-radius: 50%;
+            background: rgba(0,0,0,.65); color: #fff; cursor: pointer; z-index: 5; padding: 0;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .card-wrap .dir-btn:hover { background: rgba(0,0,0,.85); }
+        .emby-dir-btn {
+            position: absolute; right: 8px; bottom: 72px; width: 28px; height: 28px; border: none; border-radius: 50%;
+            background: rgba(0,0,0,.65); color: #fff; cursor: pointer; z-index: 6; padding: 0;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .emby-dir-btn:hover { background: rgba(0,0,0,.85); }
         .more-menu {
             display: none; position: absolute; right: 8px; bottom: 40px; background: #1a1a1a;
             border: 1px solid #444; border-radius: 6px; min-width: 110px; z-index: 6;
         }
+        .card-wrap .more-menu { bottom: 104px; }
         .more-menu.show { display: block; }
         .more-menu button { display: block; width: 100%; background: none; border: none; color: #f0f0f0; text-align: left; padding: 8px 12px; cursor: pointer; }
         .more-menu button.danger { color: #ff6b6b; }
+        .played-btn {
+            position: absolute; left: 8px; bottom: 8px; width: 28px; height: 28px; border-radius: 50%;
+            border: 2px solid rgba(255,255,255,.85); background: rgba(0,0,0,.45); cursor: pointer; z-index: 4; padding: 0;
+        }
+        .played-btn::after { content: "✓"; color: rgba(255,255,255,.35); font-weight: 700; }
+        .played-btn.is-played { background: rgba(82,181,75,.92); border-color: rgba(82,181,75,.95); }
+        .played-btn.is-played::after { color: #fff; }
+        .selectbar { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+        .selectbar .sel-info { color: var(--muted); font-size: .9rem; }
+        .card-check {
+            position: absolute; top: 8px; left: 8px; width: 22px; height: 22px; z-index: 3; cursor: pointer;
+            accent-color: var(--accent);
+        }
+        .card.selected .poster { box-shadow: inset 0 0 0 3px var(--accent); }
+        .btn.danger { background: #c62828; }
+        .btn:disabled { opacity: .45; cursor: not-allowed; }
+        .modal { max-height: 86vh; overflow: auto; }
+        .modal label { display: block; color: var(--muted); font-size: .82rem; margin: 12px 0 6px; }
+        .modal input, .modal select {
+            width: 100%; background: #121212; border: 1px solid #333; color: var(--text);
+            padding: 9px 10px; border-radius: 5px; font-size: .95rem;
+        }
+        .progress-bar { height: 10px; background: #2a2a2a; border-radius: 5px; overflow: hidden; margin: 12px 0; }
+        .progress-bar > div { height: 100%; background: var(--accent); width: 0; transition: width .3s; }
+        .prog-text { color: var(--muted); font-size: .88rem; word-break: break-all; }
+        .failed-list {
+            margin-top: 10px; max-height: 140px; overflow: auto; background: #121212; border: 1px solid #333;
+            border-radius: 5px; padding: 8px 10px; font-size: .82rem; color: #ff9a9a; white-space: pre-wrap;
+        }
+        .move-breadcrumb, .move-dir-list { background: #121212; border: 1px solid #333; border-radius: 6px; }
+        .move-breadcrumb { padding: 8px 10px; font-size: .82rem; word-break: break-all; margin-bottom: 8px; }
+        .move-breadcrumb a { color: var(--accent); cursor: pointer; text-decoration: none; }
+        .move-breadcrumb .sep { color: #555; margin: 0 3px; }
+        .move-dir-list { max-height: 240px; overflow-y: auto; margin-bottom: 8px; }
+        .move-dir-item { padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #1e1e1e; display: flex; gap: 8px; }
+        .move-dir-item:hover { background: #1e2a3a; }
+        .move-dir-empty { padding: 16px; text-align: center; color: #666; }
+        .tag-options {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px;
+            max-height: 190px; overflow: auto; padding: 10px; background: #121212; border: 1px solid #333; border-radius: 5px;
+        }
+        .tag-option { display: flex; align-items: center; gap: 6px; font-size: .88rem; cursor: pointer; overflow: hidden; }
+        .tag-option input { width: auto; }
+        .tag-option span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .tag-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+        .tag-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 8px; border-radius: 12px; background: #2d542a; color: #dff5dc; font-size: .82rem; }
+        .tag-chip button { border: 0; background: transparent; color: #b8d9b3; cursor: pointer; padding: 0; }
         .card.just-played .poster { outline: 5px solid #5dca56; outline-offset: 2px; }
         .empty { text-align: center; color: var(--muted); padding: 60px 20px; }
         .pager { display: flex; justify-content: center; gap: 12px; margin-top: 28px; }
@@ -65,9 +125,24 @@
         .modal-mask.show { display: flex; }
         .modal { background: #1a1a1a; border: 1px solid #333; border-radius: 10px; padding: 24px; width: 460px; max-width: 92vw; }
         .modal h2 { font-size: 1.2rem; margin-bottom: 16px; }
+        .modal-head {
+            display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 16px;
+        }
+        .modal-head h2 { margin-bottom: 0; flex: 1; min-width: 0; }
+        .modal-close {
+            background: none; border: none; color: var(--muted); font-size: 1.5rem; line-height: 1; cursor: pointer; padding: 0 4px;
+        }
+        .modal-close:hover { color: var(--text); }
+        .path-row { display: flex; align-items: flex-start; gap: 10px; }
+        .path-text {
+            flex: 1; min-width: 0; background: #121212; border: 1px solid #333; border-radius: 5px;
+            padding: 10px 12px; font-size: .88rem; word-break: break-all; color: var(--text);
+        }
+        .path-row .btn { flex-shrink: 0; }
         .modal .row { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
         .btn { background: var(--accent); color: #fff; border: none; border-radius: 4px; padding: 9px 16px; cursor: pointer; font-weight: 600; }
         .btn.secondary { background: #333; }
+        #colSearch { width: 100%; margin-bottom: 12px; background: #121212; border: 1px solid #333; color: var(--text); padding: 9px 10px; border-radius: 5px; font-size: .95rem; }
         .col-list { max-height: 360px; overflow: auto; }
         .col-item { display: flex; align-items: center; gap: 10px; width: 100%; background: #121212; border: 1px solid #333; color: var(--text); border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; cursor: pointer; text-align: left; }
         .col-thumb { width: 40px; height: 56px; border-radius: 4px; background: #2a2a2a center/cover no-repeat; flex-shrink: 0; }
@@ -100,14 +175,40 @@
     </div>
     <div class="stats" th:if="${searchQuery == null or searchQuery.isEmpty()}">输入关键词开始搜索</div>
 
+    <div class="selectbar">
+        <button type="button" class="btn secondary" id="selectAllBtn">全选当前页</button>
+        <button type="button" class="btn secondary" id="clearSelBtn">清空选择</button>
+        <span class="sel-info" id="selInfo">已选 0 项</span>
+        <button type="button" class="btn" id="moveBtn" disabled>移动到新目录</button>
+        <button type="button" class="btn" id="batchTagBtn" disabled>批量打标签</button>
+        <button type="button" class="btn" id="batchFavBtn" disabled>批量收藏</button>
+        <button type="button" class="btn" id="batchPlayedBtn" disabled>批量已阅</button>
+        <button type="button" class="btn" id="batchUnplayedBtn" disabled>批量未读</button>
+        <button type="button" class="btn danger" id="batchDelBtn" disabled>批量删除</button>
+    </div>
+
     <div class="grid" th:if="${mediaItems != null and !mediaItems.isEmpty()}">
         <th:block th:each="item : ${mediaItems}">
             <a class="card"
                th:if="${item.isFolder == true or item.type == 'Folder' or item.type == 'BoxSet' or item.type == 'CollectionFolder'}"
+               th:data-id="${item.id}"
                th:href="@{/media(libraryId=${searchScope != null and searchScope != 'all' ? searchScope : item.id}, parentId=${item.id}, view=folder, flat=0)}">
                 <div class="poster folder"
                      th:style="|background-image:url(/api/image/${item.id}?type=Primary&amp;maxHeight=360)|">
                     <span class="type-tag" th:text="${item.type}">Folder</span>
+                    <button type="button" class="more-btn" title="更多操作"
+                            th:if="${item.type == 'Folder'}"
+                            th:data-id="${item.id}"
+                            th:data-name="${item.name}"
+                            onclick="event.preventDefault();event.stopPropagation();toggleMoreMenu(this);">⋮</button>
+                    <div class="more-menu"
+                         th:if="${item.type == 'Folder'}"
+                         onclick="event.preventDefault();event.stopPropagation();">
+                        <button type="button"
+                                th:data-id="${item.id}"
+                                th:data-name="${item.name}"
+                                onclick="event.preventDefault();event.stopPropagation();openItemPath(this);">显示路径</button>
+                    </div>
                 </div>
                 <div class="info">
                     <h3 th:text="${item.name}">名称</h3>
@@ -116,11 +217,17 @@
             </a>
             <div class="card-wrap"
                  th:unless="${item.isFolder == true or item.type == 'Folder' or item.type == 'BoxSet' or item.type == 'CollectionFolder'}">
+                <input type="checkbox" class="card-check" th:value="${item.id}" th:data-name="${item.name}">
                 <a class="card detail-link" th:data-id="${item.id}"
                    th:href="@{/media/item/{id}(id=${item.id}, libraryId=${searchScope != null and searchScope != 'all' ? searchScope : ''})}">
                     <div class="poster"
                          th:style="|background-image:url(/api/image/${item.id}?type=Primary&amp;maxHeight=400)|">
                         <span class="type-tag" th:text="${item.type}">Movie</span>
+                        <button type="button" class="played-btn"
+                                th:classappend="${item.userDataInfo != null and item.userDataInfo.played == true} ? ' is-played'"
+                                th:data-id="${item.id}"
+                                th:data-played="${item.userDataInfo != null and item.userDataInfo.played == true}"
+                                title="切换已播放/未播放"></button>
                         <button type="button" class="pot-btn" title="PotPlayer 播放"
                                 th:data-id="${item.id}"
                                 onclick="event.preventDefault();event.stopPropagation();openInPotPlayer(this.getAttribute('data-id'));">P</button>
@@ -128,6 +235,22 @@
                                 th:data-id="${item.id}"
                                 th:data-url="@{/web/index.html(playItemId=${item.id})}"
                                 onclick="event.preventDefault();event.stopPropagation();playInEmby(this);">▶</button>
+                        <button type="button" class="emby-dir-btn" title="在 Emby 中打开所在文件夹"
+                                th:if="${searchScope != null and searchScope != 'all'}"
+                                th:data-href="@{/media(libraryId=${searchScope}, parentId=${item.parentId != null and item.parentId != '' ? item.parentId : searchScope}, view=folder, flat=0, limit=${limit})}"
+                                onclick="event.preventDefault();event.stopPropagation();openEmbyFolder(this);">
+                            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                                <path fill="none" stroke="currentColor" stroke-width="2"
+                                      d="M3 7h6l2 2h10v9H3V7z"/>
+                            </svg>
+                        </button>
+                        <button type="button" class="dir-btn" title="打开所在文件夹"
+                                th:data-id="${item.id}"
+                                onclick="event.preventDefault();event.stopPropagation();openLocalFolder(this);">
+                            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                                <path fill="currentColor" d="M10 4l2 2h8a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2h6z"/>
+                            </svg>
+                        </button>
                         <button type="button" class="more-btn" title="更多操作"
                                 th:data-id="${item.id}"
                                 th:data-name="${item.name}"
@@ -135,7 +258,16 @@
                         <div class="more-menu" onclick="event.preventDefault();event.stopPropagation();">
                             <button type="button"
                                     th:data-id="${item.id}"
+                                    th:data-name="${item.name}"
                                     onclick="event.preventDefault();event.stopPropagation();openAddToCollection(this);">添加到合集</button>
+                            <button type="button"
+                                    th:data-id="${item.id}"
+                                    th:data-name="${item.name}"
+                                    onclick="event.preventDefault();event.stopPropagation();openItemPath(this);">显示路径</button>
+                            <button type="button" class="danger"
+                                    th:data-id="${item.id}"
+                                    th:data-name="${item.name}"
+                                    onclick="event.preventDefault();event.stopPropagation();openSingleDelete(this);">删除</button>
                         </div>
                     </div>
                     <div class="info">
@@ -163,9 +295,106 @@
 <div class="modal-mask" id="colMask">
     <div class="modal">
         <h2>添加到合集</h2>
+        <input type="search" id="colSearch" placeholder="输入合集名称筛选…" autocomplete="off">
         <div class="col-list" id="colList">加载中…</div>
         <div class="row">
             <button class="btn secondary" id="colCancel" type="button">取消</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-mask" id="moveMask">
+    <div class="modal">
+        <h2>移动到新目录</h2>
+        <label>当前目录</label>
+        <div id="moveBreadcrumb" class="move-breadcrumb">加载中…</div>
+        <label>子目录（点击进入）</label>
+        <div id="moveDirList" class="move-dir-list"><div class="move-dir-item">加载中…</div></div>
+        <div class="row">
+            <button class="btn secondary" id="moveUpBtn" type="button">上级目录</button>
+            <button class="btn secondary" id="moveCancel" type="button">取消</button>
+            <button class="btn" id="moveConfirm" type="button">选择此目录</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-mask" id="tagMask">
+    <div class="modal">
+        <h2>批量打标签</h2>
+        <div class="prog-text">将对 <strong id="tagSelectedCount">0</strong> 项媒体应用所选标签</div>
+        <label for="batchTagSearch">搜索已有标签</label>
+        <input type="search" id="batchTagSearch" placeholder="输入关键字筛选标签…">
+        <div class="tag-options" id="batchTagOptions"></div>
+        <label for="newBatchTag">新增标签</label>
+        <div class="row" style="justify-content: stretch; margin-top: 0;">
+            <input type="text" id="newBatchTag" placeholder="输入新标签名">
+            <button class="btn secondary" id="addBatchTag" type="button">添加</button>
+        </div>
+        <div class="prog-text" style="margin-top: 12px;">待应用标签</div>
+        <div class="tag-chips" id="batchTagChips"></div>
+        <div class="row">
+            <button class="btn secondary" id="tagCancel" type="button">取消</button>
+            <button class="btn" id="tagConfirm" type="button">确认应用</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-mask" id="favMask">
+    <div class="modal">
+        <h2>批量收藏</h2>
+        <div class="prog-text">将对 <strong id="favSelectedCount">0</strong> 项媒体执行操作</div>
+        <div class="row" style="justify-content:center;gap:16px;">
+            <button class="btn" id="favAddConfirm" type="button">♥ 收藏</button>
+            <button class="btn secondary" id="favRemoveConfirm" type="button">♡ 取消收藏</button>
+            <button class="btn secondary" id="favCancel" type="button">取消</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-mask" id="playedMask">
+    <div class="modal">
+        <h2 id="playedMaskTitle">批量已阅</h2>
+        <div class="prog-text">将对 <strong id="playedSelectedCount">0</strong> 项媒体标记为<span id="playedMaskAction">已阅</span></div>
+        <div class="row">
+            <button class="btn secondary" id="playedCancel" type="button">取消</button>
+            <button class="btn" id="playedConfirm" type="button">确认</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-mask" id="pathMask">
+    <div class="modal path-modal">
+        <div class="modal-head">
+            <h2 id="pathMaskTitle">显示路径</h2>
+            <button type="button" class="modal-close" id="pathClose" aria-label="关闭">×</button>
+        </div>
+        <div class="path-row">
+            <div class="path-text" id="pathText">加载中…</div>
+            <button type="button" class="btn secondary" id="pathCopyBtn" disabled>复制</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-mask" id="deleteMask">
+    <div class="modal">
+        <h2>确认删除</h2>
+        <div class="prog-text" id="deleteMsg">将永久删除文件、配套文件；独立文件夹会整夹删除，无法撤销。</div>
+        <div class="row">
+            <button class="btn secondary" id="deleteCancel" type="button">取消</button>
+            <button class="btn danger" id="deleteConfirm" type="button">确认删除</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-mask" id="progMask">
+    <div class="modal">
+        <h2>批量操作进度</h2>
+        <div class="progress-bar"><div id="progFill"></div></div>
+        <div class="prog-text" id="progText">准备中…</div>
+        <div class="prog-text" id="progCur"></div>
+        <div class="failed-list" id="progFailed" style="display:none;"></div>
+        <div class="row">
+            <button class="btn" id="progClose" type="button" style="display:none;">关闭</button>
         </div>
     </div>
 </div>
@@ -199,6 +428,87 @@
     function closeAllMoreMenus() {
         document.querySelectorAll('.more-menu.show').forEach(function (m) { m.classList.remove('show'); });
     }
+
+    const pathMask = document.getElementById('pathMask');
+    const pathMaskTitle = document.getElementById('pathMaskTitle');
+    const pathText = document.getElementById('pathText');
+    const pathCopyBtn = document.getElementById('pathCopyBtn');
+    let pathCopyValue = '';
+    function copyTextToClipboard(text) {
+        if (!text) return Promise.reject(new Error('empty'));
+        if (navigator.clipboard && window.isSecureContext) {
+            return navigator.clipboard.writeText(text);
+        }
+        return new Promise(function (resolve, reject) {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.setAttribute('readonly', '');
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            ta.style.top = '0';
+            document.body.appendChild(ta);
+            ta.focus();
+            ta.select();
+            ta.setSelectionRange(0, text.length);
+            try {
+                const ok = document.execCommand('copy');
+                document.body.removeChild(ta);
+                if (ok) resolve();
+                else reject(new Error('copy failed'));
+            } catch (err) {
+                document.body.removeChild(ta);
+                reject(err);
+            }
+        });
+    }
+    function closePathModal() {
+        pathMask.classList.remove('show');
+        pathCopyValue = '';
+        pathCopyBtn.disabled = true;
+    }
+    function openItemPath(el) {
+        const id = el.getAttribute('data-id');
+        const name = el.getAttribute('data-name') || '';
+        if (!id) return;
+        closeAllMoreMenus();
+        pathMaskTitle.textContent = name ? ('路径 · ' + name) : '显示路径';
+        pathText.textContent = '加载中…';
+        pathCopyValue = '';
+        pathCopyBtn.disabled = true;
+        pathMask.classList.add('show');
+        fetch('/api/media/' + encodeURIComponent(id) + '/path')
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!data.success) {
+                    pathText.textContent = data.message || '暂无路径';
+                    return;
+                }
+                pathText.textContent = data.path;
+                pathCopyValue = data.path;
+                pathCopyBtn.disabled = false;
+            })
+            .catch(function (err) {
+                pathText.textContent = '请求失败: ' + err.message;
+            });
+    }
+    window.openItemPath = openItemPath;
+    document.getElementById('pathClose').addEventListener('click', closePathModal);
+    pathMask.addEventListener('click', function (e) {
+        if (e.target === pathMask) closePathModal();
+    });
+    pathCopyBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const text = pathCopyValue || (pathText ? pathText.textContent : '');
+        if (!text || text === '加载中…') return;
+        copyTextToClipboard(text).then(function () {
+            pathCopyBtn.textContent = '已复制';
+            setTimeout(function () { pathCopyBtn.textContent = '复制'; }, 1500);
+        }).catch(function () {
+            alert('复制失败，请手动选择路径文本复制');
+        });
+    });
+
     function toggleMoreMenu(btn) {
         const menu = btn.parentElement ? btn.parentElement.querySelector('.more-menu') : null;
         if (!menu) return;
@@ -210,49 +520,588 @@
 
     const colMask = document.getElementById('colMask');
     const colList = document.getElementById('colList');
+    const colSearch = document.getElementById('colSearch');
     let pendingColItemId = null;
+    let allCollections = [];
+
+    function collectionDisplayName(c) {
+        return String(c.Name || c.name || c.Id || c.id || '');
+    }
+    function filterCollectionsByQuery(query) {
+        const q = (query || '').trim().toLowerCase();
+        if (!q) return allCollections;
+        return allCollections.filter(function (c) {
+            return collectionDisplayName(c).toLowerCase().indexOf(q) !== -1;
+        });
+    }
+    function renderColList(cols) {
+        colList.innerHTML = '';
+        if (!cols.length) {
+            colList.textContent = allCollections.length ? '没有匹配的合集' : '还没有合集';
+            return;
+        }
+        cols.forEach(function (c) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'col-item';
+            const thumb = document.createElement('div');
+            thumb.className = 'col-thumb';
+            const colId = c.Id || c.id;
+            const colName = collectionDisplayName(c) || colId;
+            if (colId) thumb.style.backgroundImage = 'url(/api/image/' + encodeURIComponent(colId) + '?type=Primary&maxHeight=120)';
+            const name = document.createElement('span');
+            name.textContent = colName;
+            btn.appendChild(thumb);
+            btn.appendChild(name);
+            btn.addEventListener('click', function () {
+                if (!pendingColItemId) return;
+                btn.disabled = true;
+                fetch('/api/collections/' + encodeURIComponent(colId) + '/items', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ itemIds: [pendingColItemId] })
+                }).then(function (r) { return r.json(); }).then(function (res) {
+                    if (!res.success) { alert(res.message || '添加失败'); btn.disabled = false; return; }
+                    colMask.classList.remove('show');
+                    pendingColItemId = null;
+                    allCollections = [];
+                }).catch(function (err) { alert('请求失败: ' + err.message); btn.disabled = false; });
+            });
+            colList.appendChild(btn);
+        });
+    }
+    function loadCollectionsModal() {
+        colList.textContent = '加载中…';
+        if (colSearch) colSearch.value = '';
+        allCollections = [];
+        fetch('/api/collections').then(function (r) { return r.json(); }).then(function (data) {
+            if (!data.success) { colList.textContent = data.message || '加载失败'; return; }
+            allCollections = data.collections || [];
+            renderColList(filterCollectionsByQuery(colSearch ? colSearch.value : ''));
+        }).catch(function (err) { colList.textContent = '请求失败: ' + err.message; });
+    }
     function openAddToCollection(el) {
         pendingColItemId = el.getAttribute('data-id');
         closeAllMoreMenus();
-        colList.textContent = '加载中…';
         colMask.classList.add('show');
-        fetch('/api/collections').then(function (r) { return r.json(); }).then(function (data) {
-            if (!data.success) { colList.textContent = data.message || '加载失败'; return; }
-            const cols = data.collections || [];
-            if (!cols.length) { colList.textContent = '还没有合集'; return; }
-            colList.innerHTML = '';
-            cols.forEach(function (c) {
-                const btn = document.createElement('button');
-                btn.type = 'button';
-                btn.className = 'col-item';
-                const thumb = document.createElement('div');
-                thumb.className = 'col-thumb';
-                const colId = c.Id || c.id;
-                const colName = c.Name || c.name || colId;
-                if (colId) thumb.style.backgroundImage = 'url(/api/image/' + encodeURIComponent(colId) + '?type=Primary&maxHeight=120)';
-                const name = document.createElement('span');
-                name.textContent = colName;
-                btn.appendChild(thumb);
-                btn.appendChild(name);
-                btn.addEventListener('click', function () {
-                    btn.disabled = true;
-                    fetch('/api/collections/' + encodeURIComponent(colId) + '/items', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ itemIds: [pendingColItemId] })
-                    }).then(function (r) { return r.json(); }).then(function (res) {
-                        if (!res.success) { alert(res.message || '添加失败'); btn.disabled = false; return; }
-                        colMask.classList.remove('show');
-                    }).catch(function (err) { alert('请求失败: ' + err.message); btn.disabled = false; });
-                });
-                colList.appendChild(btn);
-            });
-        }).catch(function (err) { colList.textContent = '请求失败: ' + err.message; });
+        loadCollectionsModal();
+        if (colSearch) colSearch.focus();
+    }
+    window.openAddToCollection = openAddToCollection;
+    if (colSearch) {
+        colSearch.addEventListener('input', function () {
+            renderColList(filterCollectionsByQuery(colSearch.value));
+        });
     }
     document.getElementById('colCancel').addEventListener('click', function () {
         colMask.classList.remove('show');
         pendingColItemId = null;
+        allCollections = [];
     });
+
+    const selected = new Set();
+    const selInfo = document.getElementById('selInfo');
+    const moveBtn = document.getElementById('moveBtn');
+    const batchTagBtn = document.getElementById('batchTagBtn');
+    const batchFavBtn = document.getElementById('batchFavBtn');
+    const batchPlayedBtn = document.getElementById('batchPlayedBtn');
+    const batchUnplayedBtn = document.getElementById('batchUnplayedBtn');
+    const batchDelBtn = document.getElementById('batchDelBtn');
+    const cardChecks = Array.from(document.querySelectorAll('.card-check'));
+    let lastCheckIndex = -1;
+
+    cardChecks.forEach(function (c, index) {
+        c.setAttribute('data-index', String(index));
+    });
+
+    function updateSel() {
+        selInfo.textContent = '已选 ' + selected.size + ' 项';
+        moveBtn.disabled = selected.size === 0;
+        batchTagBtn.disabled = selected.size === 0;
+        batchFavBtn.disabled = selected.size === 0;
+        batchPlayedBtn.disabled = selected.size === 0;
+        batchUnplayedBtn.disabled = selected.size === 0;
+        batchDelBtn.disabled = selected.size === 0;
+    }
+    function syncCard(check) {
+        const id = check.value;
+        const wrap = check.parentElement;
+        const card = wrap ? wrap.querySelector('.card') : null;
+        if (check.checked) {
+            selected.add(id);
+            if (card) card.classList.add('selected');
+        } else {
+            selected.delete(id);
+            if (card) card.classList.remove('selected');
+        }
+        updateSel();
+    }
+    function setCheckState(check, checked) {
+        if (!check) return;
+        check.checked = !!checked;
+        syncCard(check);
+    }
+    function applyRange(fromIdx, toIdx, checked) {
+        const from = Math.min(fromIdx, toIdx);
+        const to = Math.max(fromIdx, toIdx);
+        for (let i = from; i <= to; i++) setCheckState(cardChecks[i], checked);
+    }
+    cardChecks.forEach(function (c) {
+        c.addEventListener('mousedown', function (e) {
+            if (e.shiftKey && lastCheckIndex >= 0) e.preventDefault();
+        });
+        c.addEventListener('click', function (e) {
+            e.stopPropagation();
+            const index = parseInt(c.getAttribute('data-index'), 10);
+            if (Number.isNaN(index)) return;
+            if (e.shiftKey && lastCheckIndex >= 0) {
+                applyRange(lastCheckIndex, index, true);
+                setCheckState(cardChecks[index], true);
+                lastCheckIndex = index;
+                return;
+            }
+            lastCheckIndex = index;
+        });
+        c.addEventListener('change', function () { syncCard(c); });
+    });
+    document.getElementById('selectAllBtn').addEventListener('click', function () {
+        cardChecks.forEach(function (c) { setCheckState(c, true); });
+        if (cardChecks.length) lastCheckIndex = cardChecks.length - 1;
+    });
+    document.getElementById('clearSelBtn').addEventListener('click', function () {
+        cardChecks.forEach(function (c) { setCheckState(c, false); });
+        lastCheckIndex = -1;
+    });
+    updateSel();
+
+    document.querySelectorAll('.played-btn').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const id = btn.getAttribute('data-id');
+            const currentlyPlayed = btn.classList.contains('is-played')
+                || btn.getAttribute('data-played') === 'true';
+            const nextPlayed = !currentlyPlayed;
+            btn.disabled = true;
+            fetch('/api/media/' + id + '/played', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ played: nextPlayed })
+            }).then(function (r) { return r.json(); }).then(function (data) {
+                if (!data.success) { alert(data.message || '设置失败'); return; }
+                btn.setAttribute('data-played', nextPlayed ? 'true' : 'false');
+                if (nextPlayed) btn.classList.add('is-played');
+                else btn.classList.remove('is-played');
+            }).catch(function (err) { alert('请求失败: ' + err.message); })
+                .finally(function () { btn.disabled = false; });
+        });
+    });
+
+    const progMask = document.getElementById('progMask');
+    const progBar = document.getElementById('progFill');
+    const progText = document.getElementById('progText');
+    const progCur = document.getElementById('progCur');
+    const progFailed = document.getElementById('progFailed');
+    let progTimer = null;
+    function startProgress(taskId, apiBase, actionText, failedField) {
+        progMask.classList.add('show');
+        progBar.style.width = '0%';
+        progText.textContent = '准备中…';
+        progCur.textContent = '';
+        progFailed.style.display = 'none';
+        document.getElementById('progClose').style.display = 'none';
+        pollProgress(taskId, apiBase, actionText, failedField);
+    }
+    function pollProgress(taskId, apiBase, actionText, failedField) {
+        fetch(apiBase + taskId).then(function (r) { return r.json(); }).then(function (data) {
+            if (!data.success) { progText.textContent = '查询失败'; return; }
+            const total = data.total || 0;
+            const done = data.done || 0;
+            const pct = total > 0 ? Math.round(done * 100 / total) : 0;
+            progBar.style.width = pct + '%';
+            progText.textContent = actionText + ' ' + done + ' / ' + total + '，失败 ' + (data.failed || 0);
+            progCur.textContent = data.currentName ? ('当前: ' + data.currentName) : '';
+            if (data[failedField] && data[failedField].length) {
+                progFailed.style.display = 'block';
+                progFailed.textContent = data[failedField].join('\n');
+            }
+            if (data.status === 'running') {
+                progTimer = setTimeout(function () {
+                    pollProgress(taskId, apiBase, actionText, failedField);
+                }, 1000);
+            } else {
+                progText.textContent = '完成：' + done + ' / ' + total + '，失败 ' + (data.failed || 0);
+                document.getElementById('progClose').style.display = 'inline-block';
+            }
+        }).catch(function () { progText.textContent = '请求失败'; });
+    }
+    document.getElementById('progClose').addEventListener('click', function () {
+        progMask.classList.remove('show');
+        if (progTimer) clearTimeout(progTimer);
+        location.reload();
+    });
+
+    const moveMask = document.getElementById('moveMask');
+    const moveBreadcrumb = document.getElementById('moveBreadcrumb');
+    const moveDirList = document.getElementById('moveDirList');
+    const moveUpBtn = document.getElementById('moveUpBtn');
+    let browseCurrent = '';
+    let browseParent = null;
+    function renderBreadcrumb(path) {
+        moveBreadcrumb.innerHTML = '';
+        if (!path) { moveBreadcrumb.textContent = '(空)'; return; }
+        const parts = path.split('/').filter(function (p) { return p.length > 0; });
+        let acc = '';
+        const root = path.startsWith('/') ? '/' : '';
+        parts.forEach(function (part, i) {
+            if (i > 0) {
+                const sep = document.createElement('span');
+                sep.className = 'sep';
+                sep.textContent = '/';
+                moveBreadcrumb.appendChild(sep);
+            }
+            acc = acc ? acc + '/' + part : (root ? root + part : part);
+            const a = document.createElement('a');
+            a.textContent = part;
+            a.addEventListener('click', function () { browseTo(acc); });
+            moveBreadcrumb.appendChild(a);
+        });
+    }
+    function renderDirList(subdirs, current) {
+        moveDirList.innerHTML = '';
+        if (!subdirs || !subdirs.length) {
+            moveDirList.innerHTML = '<div class="move-dir-empty">（无子目录）</div>';
+            return;
+        }
+        subdirs.forEach(function (name) {
+            const item = document.createElement('div');
+            item.className = 'move-dir-item';
+            const label = document.createElement('span');
+            label.textContent = name;
+            item.appendChild(label);
+            const childPath = current.endsWith('/') ? current + name : current + '/' + name;
+            item.addEventListener('click', function () { browseTo(childPath); });
+            moveDirList.appendChild(item);
+        });
+    }
+    function browseTo(path) {
+        moveDirList.innerHTML = '<div class="move-dir-item">加载中…</div>';
+        fetch('/api/library/browse', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path: path })
+        }).then(function (r) { return r.json(); }).then(function (data) {
+            if (!data.success) {
+                moveDirList.innerHTML = '<div class="move-dir-empty">' + (data.message || '失败') + '</div>';
+                return;
+            }
+            browseCurrent = data.current;
+            browseParent = data.parent;
+            renderBreadcrumb(data.current);
+            renderDirList(data.subdirs, data.current);
+            moveUpBtn.disabled = !data.parent;
+        }).catch(function () {
+            moveDirList.innerHTML = '<div class="move-dir-empty">请求失败</div>';
+        });
+    }
+    moveBtn.addEventListener('click', function () {
+        moveMask.classList.add('show');
+        moveBreadcrumb.textContent = '加载中…';
+        moveDirList.innerHTML = '<div class="move-dir-item">加载中…</div>';
+        fetch('/api/library/browse', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ itemIds: Array.from(selected) })
+        }).then(function (r) { return r.json(); }).then(function (data) {
+            if (!data.success) {
+                moveBreadcrumb.textContent = data.message || '失败';
+                moveDirList.innerHTML = '<div class="move-dir-empty">' + (data.message || '失败') + '</div>';
+                return;
+            }
+            browseCurrent = data.current;
+            browseParent = data.parent;
+            renderBreadcrumb(data.current);
+            renderDirList(data.subdirs, data.current);
+            moveUpBtn.disabled = !data.parent;
+        }).catch(function () {
+            moveBreadcrumb.textContent = '请求失败';
+            moveDirList.innerHTML = '<div class="move-dir-empty">请求失败</div>';
+        });
+    });
+    moveUpBtn.addEventListener('click', function () {
+        if (browseParent) browseTo(browseParent);
+    });
+    document.getElementById('moveCancel').addEventListener('click', function () {
+        moveMask.classList.remove('show');
+    });
+    document.getElementById('moveConfirm').addEventListener('click', function () {
+        if (!browseCurrent) { alert('请先浏览到目标目录'); return; }
+        fetch('/api/move', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ itemIds: Array.from(selected), targetPath: browseCurrent })
+        }).then(function (r) { return r.json(); }).then(function (data) {
+            if (!data.success) { alert(data.message || '启动失败'); return; }
+            moveMask.classList.remove('show');
+            startProgress(data.taskId, '/api/move/', '已移动', 'failedFiles');
+        }).catch(function (e) { alert('请求失败: ' + e.message); });
+    });
+
+    const tagMask = document.getElementById('tagMask');
+    const batchTagOptions = document.getElementById('batchTagOptions');
+    const batchTagChips = document.getElementById('batchTagChips');
+    const newBatchTag = document.getElementById('newBatchTag');
+    const batchTagSearch = document.getElementById('batchTagSearch');
+    let customBatchTags = new Set();
+    let tagsLoaded = false;
+    function selectedBatchTags() {
+        const result = new Set(customBatchTags);
+        batchTagOptions.querySelectorAll('input[type="checkbox"]:checked').forEach(function (c) {
+            result.add(c.value);
+        });
+        return Array.from(result);
+    }
+    function renderBatchTagChips() {
+        batchTagChips.innerHTML = '';
+        selectedBatchTags().forEach(function (tag) {
+            const chip = document.createElement('span');
+            chip.className = 'tag-chip';
+            chip.textContent = tag;
+            if (customBatchTags.has(tag)) {
+                const remove = document.createElement('button');
+                remove.type = 'button';
+                remove.textContent = '×';
+                remove.addEventListener('click', function () {
+                    customBatchTags.delete(tag);
+                    renderBatchTagChips();
+                });
+                chip.appendChild(remove);
+            }
+            batchTagChips.appendChild(chip);
+        });
+    }
+    function ensureBatchTags() {
+        if (tagsLoaded) return Promise.resolve();
+        return fetch('/api/tags').then(function (r) { return r.json(); }).then(function (data) {
+            if (!data.success) { alert(data.message || '加载标签失败'); return; }
+            batchTagOptions.innerHTML = '';
+            (data.tags || []).forEach(function (t) {
+                const name = t.Name || t.name;
+                if (!name) return;
+                const label = document.createElement('label');
+                label.className = 'tag-option';
+                label.setAttribute('data-name', name);
+                const input = document.createElement('input');
+                input.type = 'checkbox';
+                input.value = name;
+                const span = document.createElement('span');
+                span.textContent = name;
+                label.appendChild(input);
+                label.appendChild(span);
+                batchTagOptions.appendChild(label);
+            });
+            tagsLoaded = true;
+        });
+    }
+    batchTagOptions.addEventListener('change', renderBatchTagChips);
+    batchTagSearch.addEventListener('input', function () {
+        const q = this.value.trim().toLowerCase();
+        batchTagOptions.querySelectorAll('.tag-option').forEach(function (option) {
+            const name = (option.getAttribute('data-name') || '').toLowerCase();
+            option.style.display = !q || name.indexOf(q) >= 0 ? 'flex' : 'none';
+        });
+    });
+    document.getElementById('addBatchTag').addEventListener('click', function () {
+        const tag = newBatchTag.value.trim();
+        if (!tag) return;
+        customBatchTags.add(tag);
+        newBatchTag.value = '';
+        renderBatchTagChips();
+    });
+    newBatchTag.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            document.getElementById('addBatchTag').click();
+        }
+    });
+    batchTagBtn.addEventListener('click', function () {
+        document.getElementById('tagSelectedCount').textContent = selected.size;
+        customBatchTags = new Set();
+        batchTagSearch.value = '';
+        ensureBatchTags().then(function () {
+            batchTagOptions.querySelectorAll('.tag-option').forEach(function (option) {
+                option.style.display = 'flex';
+                const input = option.querySelector('input');
+                if (input) input.checked = false;
+            });
+            renderBatchTagChips();
+            tagMask.classList.add('show');
+        }).catch(function (err) { alert('请求失败: ' + err.message); });
+    });
+    document.getElementById('tagCancel').addEventListener('click', function () {
+        tagMask.classList.remove('show');
+    });
+    document.getElementById('tagConfirm').addEventListener('click', function () {
+        const tagsToApply = selectedBatchTags();
+        if (!tagsToApply.length) { alert('请至少选择或新增一个标签'); return; }
+        const confirmBtn = document.getElementById('tagConfirm');
+        confirmBtn.disabled = true;
+        fetch('/api/tags/batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ itemIds: Array.from(selected), tags: tagsToApply })
+        }).then(function (r) { return r.json(); }).then(function (data) {
+            if (!data.success) { alert(data.message || '启动批量打标签失败'); return; }
+            tagMask.classList.remove('show');
+            startProgress(data.taskId, '/api/tags/batch/', '已处理', 'failedItems');
+        }).catch(function (e) { alert('请求失败: ' + e.message); })
+            .finally(function () { confirmBtn.disabled = false; });
+    });
+
+    const favMask = document.getElementById('favMask');
+    batchFavBtn.addEventListener('click', function () {
+        document.getElementById('favSelectedCount').textContent = selected.size;
+        favMask.classList.add('show');
+    });
+    document.getElementById('favCancel').addEventListener('click', function () {
+        favMask.classList.remove('show');
+    });
+    function submitBatchFav(favorite) {
+        fetch('/api/favorites/batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ itemIds: Array.from(selected), favorite: favorite })
+        }).then(function (r) { return r.json(); }).then(function (data) {
+            if (!data.success) { alert(data.message || '启动批量收藏失败'); return; }
+            favMask.classList.remove('show');
+            startProgress(data.taskId, '/api/favorites/batch/', favorite ? '已收藏' : '已取消', 'failedItems');
+        }).catch(function (err) { alert('请求失败: ' + err.message); });
+    }
+    document.getElementById('favAddConfirm').addEventListener('click', function () { submitBatchFav(true); });
+    document.getElementById('favRemoveConfirm').addEventListener('click', function () { submitBatchFav(false); });
+
+    const playedMask = document.getElementById('playedMask');
+    let pendingPlayed = true;
+    function openPlayedConfirm(played) {
+        pendingPlayed = played;
+        document.getElementById('playedMaskTitle').textContent = played ? '批量已阅' : '批量未读';
+        document.getElementById('playedMaskAction').textContent = played ? '已阅' : '未读';
+        document.getElementById('playedSelectedCount').textContent = selected.size;
+        playedMask.classList.add('show');
+    }
+    batchPlayedBtn.addEventListener('click', function () { openPlayedConfirm(true); });
+    batchUnplayedBtn.addEventListener('click', function () { openPlayedConfirm(false); });
+    document.getElementById('playedCancel').addEventListener('click', function () {
+        playedMask.classList.remove('show');
+    });
+    document.getElementById('playedConfirm').addEventListener('click', function () {
+        const confirmBtn = document.getElementById('playedConfirm');
+        confirmBtn.disabled = true;
+        fetch('/api/played/batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ itemIds: Array.from(selected), played: pendingPlayed })
+        }).then(function (r) { return r.json(); }).then(function (data) {
+            if (!data.success) { alert(data.message || '启动批量已阅失败'); return; }
+            playedMask.classList.remove('show');
+            startProgress(data.taskId, '/api/played/batch/', pendingPlayed ? '已阅' : '未读', 'failedItems');
+        }).catch(function (err) { alert('请求失败: ' + err.message); })
+            .finally(function () { confirmBtn.disabled = false; });
+    });
+
+    const deleteMask = document.getElementById('deleteMask');
+    const deleteMsg = document.getElementById('deleteMsg');
+    const DELETE_WARN = '将永久删除文件、配套文件；独立文件夹会整夹删除，无法撤销。';
+    let pendingDelete = null;
+    function openDeleteConfirm(pending) {
+        pendingDelete = pending;
+        closeAllMoreMenus();
+        if (pending.mode === 'batch') {
+            deleteMsg.textContent = '将对 ' + pending.count + ' 项媒体执行删除。' + DELETE_WARN;
+        } else {
+            const name = pending.name ? '「' + pending.name + '」' : '该项';
+            deleteMsg.textContent = '即将删除 ' + name + '。' + DELETE_WARN;
+        }
+        deleteMask.classList.add('show');
+    }
+    function openSingleDelete(el) {
+        openDeleteConfirm({
+            mode: 'single',
+            itemId: el.getAttribute('data-id'),
+            name: el.getAttribute('data-name') || ''
+        });
+    }
+    window.openSingleDelete = openSingleDelete;
+    batchDelBtn.addEventListener('click', function () {
+        if (selected.size === 0) return;
+        openDeleteConfirm({ mode: 'batch', count: selected.size });
+    });
+    document.getElementById('deleteCancel').addEventListener('click', function () {
+        deleteMask.classList.remove('show');
+        pendingDelete = null;
+    });
+    document.getElementById('deleteConfirm').addEventListener('click', function () {
+        if (!pendingDelete) return;
+        const confirmBtn = document.getElementById('deleteConfirm');
+        confirmBtn.disabled = true;
+        if (pendingDelete.mode === 'batch') {
+            fetch('/api/media/batch-delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ itemIds: Array.from(selected) })
+            }).then(function (r) { return r.json(); }).then(function (data) {
+                if (!data.success) { alert(data.message || '启动批量删除失败'); return; }
+                deleteMask.classList.remove('show');
+                startProgress(data.taskId, '/api/media/batch-delete/', '已删除', 'failedItems');
+            }).catch(function (err) { alert('请求失败: ' + err.message); })
+                .finally(function () { confirmBtn.disabled = false; pendingDelete = null; });
+            return;
+        }
+        const itemId = pendingDelete.itemId;
+        fetch('/api/media/' + encodeURIComponent(itemId) + '/delete', { method: 'POST' })
+            .then(function (r) { return r.json(); }).then(function (data) {
+                if (!data.success) { alert(data.message || '删除失败'); return; }
+                deleteMask.classList.remove('show');
+                const wrap = document.querySelector('.card-wrap .more-btn[data-id="' + itemId + '"]');
+                const cardWrap = wrap ? wrap.closest('.card-wrap') : null;
+                if (cardWrap) {
+                    const check = cardWrap.querySelector('.card-check');
+                    if (check && selected.has(check.value)) {
+                        selected.delete(check.value);
+                        updateSel();
+                    }
+                    cardWrap.remove();
+                } else {
+                    location.reload();
+                }
+            }).catch(function (err) { alert('请求失败: ' + err.message); })
+            .finally(function () { confirmBtn.disabled = false; pendingDelete = null; });
+    });
+    function openLocalFolder(btn) {
+        const id = btn.getAttribute('data-id');
+        if (!id) return;
+        fetch('/api/files/check?itemId=' + encodeURIComponent(id))
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!data.success) {
+                    alert(data.message || '找不到对应目录');
+                    return;
+                }
+                var lib = '[(${searchScope != null ? searchScope : ""})]';
+                var url = '/files?itemId=' + encodeURIComponent(id);
+                if (lib && lib !== 'all') {
+                    url += '&libraryId=' + encodeURIComponent(lib);
+                }
+                window.open(url, '_blank');
+            })
+            .catch(function (err) { alert('请求失败: ' + err.message); });
+    }
+    function openEmbyFolder(btn) {
+        const href = btn.getAttribute('data-href');
+        if (href) window.location.href = href;
+    }
+    window.openLocalFolder = openLocalFolder;
+    window.openEmbyFolder = openEmbyFolder;
 </script>
 </body>
 </html>

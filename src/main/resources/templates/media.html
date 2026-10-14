@@ -70,6 +70,7 @@
             cursor: pointer;
             font-weight: 600;
         }
+        #colSearch { width: 100%; margin-bottom: 12px; background: #121212; border: 1px solid #333; color: var(--text); padding: 9px 10px; border-radius: 5px; font-size: .95rem; }
         .col-list { max-height: 360px; overflow: auto; }
         .col-item {
             display: flex;
@@ -198,6 +199,22 @@
         }
         .filter-modal .field { min-width: 0; margin-bottom: 12px; }
         .filter-modal .field select { width: 100%; min-width: 0; }
+        .folder-search {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-left: auto;
+        }
+        .folder-search input[type="search"] {
+            background: #121212;
+            border: 1px solid #333;
+            color: var(--text);
+            height: 34px;
+            border-radius: 6px;
+            padding: 0 10px;
+            min-width: 180px;
+            font-size: .9rem;
+        }
         .sort-wrap { position: relative; }
         .sort-btn {
             display: inline-flex;
@@ -286,6 +303,14 @@
         .card:hover {
             transform: translateY(-3px) scale(1.02);
             box-shadow: 0 10px 24px rgba(0,0,0,.5);
+        }
+        .card-wrap .card:hover {
+            transform: translateY(-3px);
+        }
+        .card-wrap .card:hover:has(.poster button:hover),
+        .card-wrap .card:hover:has(.more-menu.show) {
+            transform: none;
+            box-shadow: none;
         }
         .poster {
             aspect-ratio: 2 / 3;
@@ -420,6 +445,44 @@
             padding: 0;
         }
         .more-btn:hover { background: rgba(0,0,0,.85); }
+        .dir-btn {
+            position: absolute;
+            right: 40px;
+            bottom: 8px;
+            background: rgba(0,0,0,.65);
+            color: #fff;
+            border: none;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 5;
+            padding: 0;
+        }
+        .dir-btn:hover { background: rgba(0,0,0,.85); }
+        .emby-dir-btn {
+            position: absolute;
+            right: 8px;
+            bottom: 72px;
+            background: rgba(0,0,0,.65);
+            color: #fff;
+            border: none;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 6;
+            padding: 0;
+        }
+        .emby-dir-btn:hover { background: rgba(0,0,0,.85); }
+        .card-wrap .dir-btn { right: 8px; bottom: 40px; }
+        .card-wrap .more-menu { bottom: 104px; }
         .more-menu {
             display: none;
             position: absolute;
@@ -599,6 +662,41 @@
             transition: width .3s;
         }
         .prog-text { color: var(--muted); font-size: .88rem; word-break: break-all; }
+        .modal-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .modal-head h2 { margin-bottom: 0; flex: 1; min-width: 0; }
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--muted);
+            font-size: 1.5rem;
+            line-height: 1;
+            cursor: pointer;
+            padding: 0 4px;
+        }
+        .modal-close:hover { color: var(--text); }
+        .path-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+        }
+        .path-text {
+            flex: 1;
+            min-width: 0;
+            background: #121212;
+            border: 1px solid #333;
+            border-radius: 5px;
+            padding: 10px 12px;
+            font-size: .88rem;
+            word-break: break-all;
+            color: var(--text);
+        }
+        .path-row .btn { flex-shrink: 0; margin-top: 0; }
         .failed-list {
             margin-top: 10px;
             max-height: 140px;
@@ -761,6 +859,21 @@
         <a th:classappend="${viewMode == 'collection'} ? ' active'"
            th:href="@{/media(libraryId=${selectedLibraryId}, view=collection, tags=${selectedTags}, excludeTags=${selectedExcludeTags}, isFavorite=${isFavorite}, playStatus=${playStatus}, limit=${limit}, sortBy=${sortBy}, sortOrder=${sortOrder}, container=${selectedContainer}, videoCodec=${selectedVideoCodec}, resolution=${selectedResolution}, subtitle=${selectedSubtitle})}">合集</a>
     </div>
+    <form class="folder-search" th:if="${viewMode == 'folder'}" method="get" action="/media">
+        <input type="hidden" name="libraryId" th:value="${selectedLibraryId}">
+        <input type="hidden" name="parentId" th:value="${parentId}">
+        <input type="hidden" name="view" value="folder">
+        <input type="hidden" name="flat" value="0">
+        <input type="hidden" name="startIndex" value="0">
+        <input type="hidden" name="limit" th:value="${limit}">
+        <input type="hidden" name="sortBy" th:value="${sortBy}">
+        <input type="hidden" name="sortOrder" th:value="${sortOrder}">
+        <input type="search" name="folderQ" placeholder="搜索文件夹名…" th:value="${folderQuery}" autocomplete="off">
+        <button type="submit" class="btn">搜索</button>
+        <a class="btn secondary"
+           th:if="${folderQuery != null and !folderQuery.isEmpty()}"
+           th:href="@{/media(libraryId=${selectedLibraryId}, parentId=${parentId}, view=folder, flat=0, limit=${limit}, sortBy=${sortBy}, sortOrder=${sortOrder})}">清除</a>
+    </form>
     <button type="button" class="filter-btn" id="mediaFilterBtn"
             th:classappend="${hasMediaFilter} ? ' active'">过滤器</button>
     <div class="sort-wrap">
@@ -780,6 +893,9 @@
         <span th:text="${mediaItems != null ? mediaItems.size() : 0}">0</span> 条
         <span th:if="${viewMode == 'movie'}">（电影模式）</span>
         <span th:if="${viewMode == 'folder'}">（文件夹模式）</span>
+        <span th:if="${folderQuery != null and !folderQuery.isEmpty()}">
+            · 文件夹名包含「<span th:text="${folderQuery}">关键词</span>」
+        </span>
         <span th:if="${viewMode == 'collection'}">（合集模式）</span>
         · 每页 <span th:text="${limit}">200</span>
     </div>
@@ -794,16 +910,49 @@
         <button type="button" class="btn" id="batchPlayedBtn" disabled>批量已阅</button>
         <button type="button" class="btn" id="batchUnplayedBtn" disabled>批量未读</button>
         <button type="button" class="btn danger" id="batchDelBtn" disabled>批量删除</button>
+        <a class="btn secondary" id="folderUpBtn"
+           th:if="${viewMode == 'folder' and parentId != selectedLibraryId and (folderQuery == null or folderQuery.isEmpty())}"
+           th:data-from-folder-id="${parentId}"
+           th:href="${folderParentId != null and folderParentId != '' and folderParentId != selectedLibraryId}
+               ? @{/media(libraryId=${selectedLibraryId}, parentId=${folderParentId}, view=folder, flat=0, limit=${limit}, sortBy=${sortBy}, sortOrder=${sortOrder})}
+               : @{/media(libraryId=${selectedLibraryId}, view=folder, flat=0, limit=${limit}, sortBy=${sortBy}, sortOrder=${sortOrder})}">返回上级目录</a>
     </div>
 
     <div class="grid" th:if="${mediaItems != null and !mediaItems.isEmpty()}">
         <th:block th:each="item : ${mediaItems}">
             <a class="card"
                th:if="${item.isFolder == true or item.type == 'Folder' or item.type == 'BoxSet' or item.type == 'CollectionFolder'}"
+               th:data-id="${item.id}"
                th:href="@{/media(libraryId=${selectedLibraryId}, parentId=${item.id}, view=folder, flat=0, tags=${selectedTags}, excludeTags=${selectedExcludeTags}, isFavorite=${isFavorite}, playStatus=${playStatus}, limit=${limit}, sortBy=${sortBy}, sortOrder=${sortOrder}, container=${selectedContainer}, videoCodec=${selectedVideoCodec}, resolution=${selectedResolution}, subtitle=${selectedSubtitle})}">
                 <div class="poster folder"
                      th:style="|background-image:url(/api/image/${item.id}?type=Primary&amp;maxHeight=360)|">
                     <span class="type-tag" th:text="${item.type}">Folder</span>
+                    <button type="button" class="dir-btn" title="浏览目录图片"
+                            th:if="${item.type == 'Folder'}"
+                            th:data-id="${item.id}"
+                            onclick="event.preventDefault();event.stopPropagation();openLocalFolder(this);">
+                        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                            <path fill="currentColor" d="M10 4l2 2h8a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2h6z"/>
+                        </svg>
+                    </button>
+                    <button type="button" class="more-btn" title="更多操作"
+                            th:if="${item.type == 'Folder'}"
+                            th:data-id="${item.id}"
+                            th:data-name="${item.name}"
+                            onclick="event.preventDefault();event.stopPropagation();toggleMoreMenu(this);">⋮</button>
+                    <div class="more-menu"
+                         th:if="${item.type == 'Folder'}"
+                         onclick="event.preventDefault();event.stopPropagation();">
+                        <button type="button"
+                                th:data-id="${item.id}"
+                                th:data-name="${item.name}"
+                                onclick="event.preventDefault();event.stopPropagation();openItemPath(this);">显示路径</button>
+                        <button type="button" class="danger"
+                                th:data-id="${item.id}"
+                                th:data-name="${item.name}"
+                                data-kind="folder"
+                                onclick="event.preventDefault();event.stopPropagation();openSingleDelete(this);">删除</button>
+                    </div>
                 </div>
                 <div class="info">
                     <h3 th:text="${item.name}">名称</h3>
@@ -835,6 +984,21 @@
                                 th:data-id="${item.id}"
                                 th:data-url="@{/web/index.html(playItemId=${item.id})}"
                                 onclick="event.preventDefault();event.stopPropagation();playInEmby(this);">▶</button>
+                        <button type="button" class="emby-dir-btn" title="在 Emby 中打开所在文件夹"
+                                th:data-href="@{/media(libraryId=${selectedLibraryId}, parentId=${item.parentId != null and item.parentId != '' ? item.parentId : selectedLibraryId}, view=folder, flat=0, limit=${limit}, sortBy=${sortBy}, sortOrder=${sortOrder})}"
+                                onclick="event.preventDefault();event.stopPropagation();openEmbyFolder(this);">
+                            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                                <path fill="none" stroke="currentColor" stroke-width="2"
+                                      d="M3 7h6l2 2h10v9H3V7z"/>
+                            </svg>
+                        </button>
+                        <button type="button" class="dir-btn" title="打开所在文件夹"
+                                th:data-id="${item.id}"
+                                onclick="event.preventDefault();event.stopPropagation();openLocalFolder(this);">
+                            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                                <path fill="currentColor" d="M10 4l2 2h8a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2h6z"/>
+                            </svg>
+                        </button>
                         <button type="button" class="more-btn" title="更多操作"
                                 th:data-id="${item.id}"
                                 th:data-name="${item.name}"
@@ -846,6 +1010,10 @@
                                     th:data-id="${item.id}"
                                     th:data-name="${item.name}"
                                     onclick="event.preventDefault();event.stopPropagation();openAddToCollection(this);">添加到合集</button>
+                            <button type="button"
+                                    th:data-id="${item.id}"
+                                    th:data-name="${item.name}"
+                                    onclick="event.preventDefault();event.stopPropagation();openItemPath(this);">显示路径</button>
                             <button type="button" class="danger"
                                     th:data-id="${item.id}"
                                     th:data-name="${item.name}"
@@ -862,15 +1030,16 @@
     </div>
 
     <div class="empty" th:if="${mediaItems == null or mediaItems.isEmpty()}">
-        这里还没有内容。试试换个文件夹，或清除筛选条件。
+        <span th:if="${folderQuery != null and !folderQuery.isEmpty()}">没有名称包含该关键词的文件夹。</span>
+        <span th:unless="${folderQuery != null and !folderQuery.isEmpty()}">这里还没有内容。试试换个文件夹，或清除筛选条件。</span>
     </div>
 
     <div class="pager" th:if="${totalRecordCount != null and totalRecordCount > limit}">
         <a th:classappend="${startIndex <= 0} ? ' disabled'"
-           th:href="@{/media(libraryId=${selectedLibraryId}, parentId=${parentId}, tags=${selectedTags}, excludeTags=${selectedExcludeTags}, isFavorite=${isFavorite}, playStatus=${playStatus}, startIndex=${startIndex - limit}, limit=${limit}, flat=${wantFlat ? 1 : 0}, view=${viewMode}, sortBy=${sortBy}, sortOrder=${sortOrder}, container=${selectedContainer}, videoCodec=${selectedVideoCodec}, resolution=${selectedResolution}, subtitle=${selectedSubtitle})}">上一页</a>
+           th:href="@{/media(libraryId=${selectedLibraryId}, parentId=${parentId}, tags=${selectedTags}, excludeTags=${selectedExcludeTags}, isFavorite=${isFavorite}, playStatus=${playStatus}, startIndex=${startIndex - limit}, limit=${limit}, flat=${wantFlat ? 1 : 0}, view=${viewMode}, sortBy=${sortBy}, sortOrder=${sortOrder}, container=${selectedContainer}, videoCodec=${selectedVideoCodec}, resolution=${selectedResolution}, subtitle=${selectedSubtitle}, folderQ=${folderQuery})}">上一页</a>
         <span th:text="${(startIndex / limit) + 1} + ' / ' + ${((totalRecordCount + limit - 1) / limit)}">1 / 1</span>
         <a th:classappend="${startIndex + limit >= totalRecordCount} ? ' disabled'"
-           th:href="@{/media(libraryId=${selectedLibraryId}, parentId=${parentId}, tags=${selectedTags}, excludeTags=${selectedExcludeTags}, isFavorite=${isFavorite}, playStatus=${playStatus}, startIndex=${startIndex + limit}, limit=${limit}, flat=${wantFlat ? 1 : 0}, view=${viewMode}, sortBy=${sortBy}, sortOrder=${sortOrder}, container=${selectedContainer}, videoCodec=${selectedVideoCodec}, resolution=${selectedResolution}, subtitle=${selectedSubtitle})}">下一页</a>
+           th:href="@{/media(libraryId=${selectedLibraryId}, parentId=${parentId}, tags=${selectedTags}, excludeTags=${selectedExcludeTags}, isFavorite=${isFavorite}, playStatus=${playStatus}, startIndex=${startIndex + limit}, limit=${limit}, flat=${wantFlat ? 1 : 0}, view=${viewMode}, sortBy=${sortBy}, sortOrder=${sortOrder}, container=${selectedContainer}, videoCodec=${selectedVideoCodec}, resolution=${selectedResolution}, subtitle=${selectedSubtitle}, folderQ=${folderQuery})}">下一页</a>
     </div>
 </div>
 
@@ -988,9 +1157,24 @@
 <div class="modal-mask" id="colMask">
     <div class="modal">
         <h2>添加到合集</h2>
+        <input type="search" id="colSearch" placeholder="输入合集名称筛选…" autocomplete="off">
         <div class="col-list" id="colList">加载中…</div>
         <div class="row">
             <button class="btn secondary" id="colCancel" type="button">取消</button>
+        </div>
+    </div>
+</div>
+
+<!-- 显示路径 -->
+<div class="modal-mask" id="pathMask">
+    <div class="modal path-modal">
+        <div class="modal-head">
+            <h2 id="pathMaskTitle">显示路径</h2>
+            <button type="button" class="modal-close" id="pathClose" aria-label="关闭">×</button>
+        </div>
+        <div class="path-row">
+            <div class="path-text" id="pathText">加载中…</div>
+            <button type="button" class="btn secondary" id="pathCopyBtn" disabled>复制</button>
         </div>
     </div>
 </div>
@@ -1037,6 +1221,7 @@
     const currentVideoCodec = '[(${selectedVideoCodec != null ? selectedVideoCodec : ""})]';
     const currentResolution = '[(${selectedResolution != null ? selectedResolution : ""})]';
     const currentSubtitle = '[(${selectedSubtitle != null ? selectedSubtitle : ""})]';
+    const currentFolderQuery = '[(${folderQuery != null ? folderQuery : ""})]';
     const currentLimit = [(${limit})];
 
     const SORT_OPTIONS = [
@@ -1067,6 +1252,8 @@
             params.set('flat', '0');
             const parent = overrides.parentId !== undefined ? overrides.parentId : currentParentId;
             if (parent && parent !== libraryId) params.set('parentId', parent);
+            const folderQ = overrides.folderQ !== undefined ? overrides.folderQ : currentFolderQuery;
+            if (folderQ) params.set('folderQ', folderQ);
         } else {
             params.set('flat', '1');
         }
@@ -1322,14 +1509,22 @@
 
     /* PotPlayer 播放（Emby 直传流 + potplayer:// 协议） */
     const LAST_PLAYED_KEY = 'embyBrowseLastPlayedId';
-    function markJustPlayed(itemId) {
+    const LAST_FOLDER_RETURN_KEY = 'embyBrowseLastFolderReturnId';
+    function markCardHighlight(itemId) {
         if (!itemId) return;
-        try { sessionStorage.setItem(LAST_PLAYED_KEY, itemId); } catch (e) { /* ignore */ }
         document.querySelectorAll('.card.just-played').forEach(function (c) {
             c.classList.remove('just-played');
         });
         const card = document.querySelector('.card[data-id="' + itemId + '"]');
         if (card) card.classList.add('just-played');
+    }
+    function markJustPlayed(itemId) {
+        if (!itemId) return;
+        try { sessionStorage.setItem(LAST_PLAYED_KEY, itemId); } catch (e) { /* ignore */ }
+        markCardHighlight(itemId);
+    }
+    function markFolderReturnFrom(itemId) {
+        markCardHighlight(itemId);
     }
     function playInEmby(btn) {
         markJustPlayed(btn.getAttribute('data-id'));
@@ -1353,7 +1548,21 @@
             })
             .catch(function (err) { alert('请求失败: ' + err.message); });
     }
-    try { markJustPlayed(sessionStorage.getItem(LAST_PLAYED_KEY)); } catch (e) { /* ignore */ }
+    if (currentView === 'folder') {
+        try { markFolderReturnFrom(sessionStorage.getItem(LAST_FOLDER_RETURN_KEY)); } catch (e) { /* ignore */ }
+    } else {
+        try { markJustPlayed(sessionStorage.getItem(LAST_PLAYED_KEY)); } catch (e) { /* ignore */ }
+    }
+
+    const folderUpBtn = document.getElementById('folderUpBtn');
+    if (folderUpBtn) {
+        folderUpBtn.addEventListener('click', function () {
+            const fromId = folderUpBtn.getAttribute('data-from-folder-id');
+            if (fromId) {
+                try { sessionStorage.setItem(LAST_FOLDER_RETURN_KEY, fromId); } catch (e) { /* ignore */ }
+            }
+        });
+    }
 
     /* 收藏切换 */
     document.querySelectorAll('.fav-btn').forEach(function (btn) {
@@ -1758,6 +1967,87 @@
     function closeAllMoreMenus() {
         document.querySelectorAll('.more-menu.show').forEach(function (m) { m.classList.remove('show'); });
     }
+
+    const pathMask = document.getElementById('pathMask');
+    const pathMaskTitle = document.getElementById('pathMaskTitle');
+    const pathText = document.getElementById('pathText');
+    const pathCopyBtn = document.getElementById('pathCopyBtn');
+    let pathCopyValue = '';
+    function copyTextToClipboard(text) {
+        if (!text) return Promise.reject(new Error('empty'));
+        if (navigator.clipboard && window.isSecureContext) {
+            return navigator.clipboard.writeText(text);
+        }
+        return new Promise(function (resolve, reject) {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.setAttribute('readonly', '');
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            ta.style.top = '0';
+            document.body.appendChild(ta);
+            ta.focus();
+            ta.select();
+            ta.setSelectionRange(0, text.length);
+            try {
+                const ok = document.execCommand('copy');
+                document.body.removeChild(ta);
+                if (ok) resolve();
+                else reject(new Error('copy failed'));
+            } catch (err) {
+                document.body.removeChild(ta);
+                reject(err);
+            }
+        });
+    }
+    function closePathModal() {
+        pathMask.classList.remove('show');
+        pathCopyValue = '';
+        pathCopyBtn.disabled = true;
+    }
+    function openItemPath(el) {
+        const id = el.getAttribute('data-id');
+        const name = el.getAttribute('data-name') || '';
+        if (!id) return;
+        closeAllMoreMenus();
+        pathMaskTitle.textContent = name ? ('路径 · ' + name) : '显示路径';
+        pathText.textContent = '加载中…';
+        pathCopyValue = '';
+        pathCopyBtn.disabled = true;
+        pathMask.classList.add('show');
+        fetch('/api/media/' + encodeURIComponent(id) + '/path')
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!data.success) {
+                    pathText.textContent = data.message || '暂无路径';
+                    return;
+                }
+                pathText.textContent = data.path;
+                pathCopyValue = data.path;
+                pathCopyBtn.disabled = false;
+            })
+            .catch(function (err) {
+                pathText.textContent = '请求失败: ' + err.message;
+            });
+    }
+    window.openItemPath = openItemPath;
+    document.getElementById('pathClose').addEventListener('click', closePathModal);
+    pathMask.addEventListener('click', function (e) {
+        if (e.target === pathMask) closePathModal();
+    });
+    pathCopyBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const text = pathCopyValue || (pathText ? pathText.textContent : '');
+        if (!text || text === '加载中…') return;
+        copyTextToClipboard(text).then(function () {
+            pathCopyBtn.textContent = '已复制';
+            setTimeout(function () { pathCopyBtn.textContent = '复制'; }, 1500);
+        }).catch(function () {
+            alert('复制失败，请手动选择路径文本复制');
+        });
+    });
+
     function toggleMoreMenu(btn) {
         const menu = btn.parentElement ? btn.parentElement.querySelector('.more-menu') : null;
         if (!menu) return;
@@ -1770,6 +2060,9 @@
         closeAllMoreMenus();
         if (pending.mode === 'batch') {
             deleteMsg.textContent = '将对 ' + pending.count + ' 项媒体执行删除。' + DELETE_WARN;
+        } else if (pending.kind === 'folder') {
+            const name = pending.name ? '「' + pending.name + '」' : '该文件夹';
+            deleteMsg.textContent = '即将删除文件夹 ' + name + ' 及其内部的媒体文件，无法撤销。';
         } else {
             const name = pending.name ? '「' + pending.name + '」' : '该项';
             deleteMsg.textContent = '即将删除 ' + name + '。' + DELETE_WARN;
@@ -1779,73 +2072,136 @@
     function openSingleDelete(el) {
         openDeleteConfirm({
             mode: 'single',
+            kind: el.getAttribute('data-kind') || '',
             itemId: el.getAttribute('data-id'),
             name: el.getAttribute('data-name') || ''
         });
     }
     window.toggleMoreMenu = toggleMoreMenu;
     window.openSingleDelete = openSingleDelete;
+    function openLocalFolder(btn) {
+        const id = btn.getAttribute('data-id');
+        if (!id) return;
+        fetch('/api/files/check?itemId=' + encodeURIComponent(id))
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!data.success) {
+                    alert(data.message || '找不到对应目录');
+                    return;
+                }
+                window.open('/files?itemId=' + encodeURIComponent(id)
+                    + '&libraryId=' + encodeURIComponent(libraryId), '_blank');
+            })
+            .catch(function (err) { alert('请求失败: ' + err.message); });
+    }
+    function openEmbyFolder(btn) {
+        const href = btn.getAttribute('data-href');
+        if (href) window.location.href = href;
+    }
+    window.openLocalFolder = openLocalFolder;
+    window.openEmbyFolder = openEmbyFolder;
 
     const colMask = document.getElementById('colMask');
     const colList = document.getElementById('colList');
+    const colSearch = document.getElementById('colSearch');
     let pendingColItemId = null;
-    function openAddToCollection(el) {
-        pendingColItemId = el.getAttribute('data-id');
-        closeAllMoreMenus();
+    let allCollections = [];
+
+    function collectionDisplayName(c) {
+        return String(c.Name || c.name || c.Id || c.id || '');
+    }
+    function filterCollectionsByQuery(query) {
+        const q = (query || '').trim().toLowerCase();
+        if (!q) return allCollections;
+        return allCollections.filter(function (c) {
+            return collectionDisplayName(c).toLowerCase().indexOf(q) !== -1;
+        });
+    }
+    function renderColList(cols) {
+        colList.innerHTML = '';
+        if (!cols.length) {
+            colList.textContent = allCollections.length ? '没有匹配的合集' : '还没有合集';
+            return;
+        }
+        cols.forEach(function (c) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'col-item';
+            const thumb = document.createElement('div');
+            thumb.className = 'col-thumb';
+            const colId = c.Id || c.id;
+            const colName = collectionDisplayName(c) || colId;
+            if (colId) thumb.style.backgroundImage = 'url(/api/image/' + encodeURIComponent(colId) + '?type=Primary&maxHeight=120)';
+            const name = document.createElement('span');
+            name.textContent = colName;
+            btn.appendChild(thumb);
+            btn.appendChild(name);
+            btn.addEventListener('click', function () {
+                if (!pendingColItemId) return;
+                btn.disabled = true;
+                fetch('/api/collections/' + encodeURIComponent(colId) + '/items', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ itemIds: [pendingColItemId] })
+                }).then(function (r) { return r.json(); }).then(function (res) {
+                    if (!res.success) {
+                        alert(res.message || '添加失败');
+                        btn.disabled = false;
+                        return;
+                    }
+                    colMask.classList.remove('show');
+                    pendingColItemId = null;
+                    allCollections = [];
+                }).catch(function (err) {
+                    alert('请求失败: ' + err.message);
+                    btn.disabled = false;
+                });
+            });
+            colList.appendChild(btn);
+        });
+    }
+    function loadCollectionsModal() {
         colList.textContent = '加载中…';
-        colMask.classList.add('show');
+        if (colSearch) colSearch.value = '';
+        allCollections = [];
         fetch('/api/collections').then(function (r) { return r.json(); }).then(function (data) {
             if (!data.success) {
                 colList.textContent = data.message || '加载失败';
                 return;
             }
-            const cols = data.collections || [];
-            if (!cols.length) {
-                colList.textContent = '还没有合集';
-                return;
-            }
-            colList.innerHTML = '';
-            cols.forEach(function (c) {
-                const btn = document.createElement('button');
-                btn.type = 'button';
-                btn.className = 'col-item';
-                const thumb = document.createElement('div');
-                thumb.className = 'col-thumb';
-                const colId = c.Id || c.id;
-                const colName = c.Name || c.name || colId;
-                if (colId) thumb.style.backgroundImage = 'url(/api/image/' + encodeURIComponent(colId) + '?type=Primary&maxHeight=120)';
-                const name = document.createElement('span');
-                name.textContent = colName;
-                btn.appendChild(thumb);
-                btn.appendChild(name);
-                btn.addEventListener('click', function () {
-                    btn.disabled = true;
-                    fetch('/api/collections/' + encodeURIComponent(colId) + '/items', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ itemIds: [pendingColItemId] })
-                    }).then(function (r) { return r.json(); }).then(function (res) {
-                        if (!res.success) {
-                            alert(res.message || '添加失败');
-                            btn.disabled = false;
-                            return;
-                        }
-                        colMask.classList.remove('show');
-                    }).catch(function (err) {
-                        alert('请求失败: ' + err.message);
-                        btn.disabled = false;
-                    });
-                });
-                colList.appendChild(btn);
-            });
+            allCollections = data.collections || [];
+            renderColList(filterCollectionsByQuery(colSearch ? colSearch.value : ''));
         }).catch(function (err) {
             colList.textContent = '请求失败: ' + err.message;
         });
     }
+    function openAddToCollection(el) {
+        pendingColItemId = el.getAttribute('data-id');
+        closeAllMoreMenus();
+        colMask.classList.add('show');
+        loadCollectionsModal();
+        if (colSearch) {
+            colSearch.focus();
+        }
+    }
     window.openAddToCollection = openAddToCollection;
+    if (colSearch) {
+        colSearch.addEventListener('input', function () {
+            renderColList(filterCollectionsByQuery(colSearch.value));
+        });
+        colSearch.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') {
+                e.stopPropagation();
+                colMask.classList.remove('show');
+                pendingColItemId = null;
+                allCollections = [];
+            }
+        });
+    }
     document.getElementById('colCancel').addEventListener('click', function () {
         colMask.classList.remove('show');
         pendingColItemId = null;
+        allCollections = [];
     });
 
     document.addEventListener('click', function () { closeAllMoreMenus(); });

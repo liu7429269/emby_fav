@@ -15,6 +15,7 @@ import com.emby.service.BatchPlayedService;
 import com.emby.service.BatchDeleteService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -38,6 +39,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Controller
@@ -57,6 +60,7 @@ public class EmbyController {
     private final BatchFavoriteService batchFavoriteService;
     private final BatchPlayedService batchPlayedService;
     private final BatchDeleteService batchDeleteService;
+    private final ConcurrentHashMap<String, CachedFolderRoot> folderRootCache = new ConcurrentHashMap<>();
 
     @GetMapping("/")
     public String index(HttpSession session) {
@@ -146,6 +150,7 @@ public class EmbyController {
             @RequestParam(required = false) String videoCodec,
             @RequestParam(required = false) String resolution,
             @RequestParam(required = false) String subtitle,
+            @RequestParam(required = false) String folderQ,
             HttpSession session,
             Model model) {
         String accessToken = (String) session.getAttribute("embyAccessToken");
@@ -156,7 +161,7 @@ public class EmbyController {
         try {
             browsePageService.fillMedia(libraryId, parentId, tags, excludeTags, isFavorite, playStatus,
                     startIndex, limit, flat, view, sortBy, sortOrder,
-                    container, videoCodec, resolution, subtitle, session, model);
+                    container, videoCodec, resolution, subtitle, folderQ, session, model);
             return "media";
         } catch (Exception e) {
             log.error("获取媒体项失败", e);
@@ -222,6 +227,286 @@ public class EmbyController {
             model.addAttribute("error", "搜索失败: " + e.getMessage());
             return "error";
         }
+    }
+
+    @GetMapping("/files")
+    public String files(@RequestParam String itemId,
+                        @RequestParam(required = false) String rel,
+                        @RequestParam(required = false) String libraryId,
+                        HttpSession session,
+                        Model model) {
+        String accessToken = (String) session.getAttribute("embyAccessToken");
+        String userId = (String) session.getAttribute("embyUserId");
+        if (!isLoggedIn(accessToken, userId)) {
+            return "redirect:/login";
+        }
+        model.addAttribute("itemId", itemId);
+        model.addAttribute("rel", rel == null ? "" : rel);
+        model.addAttribute("directories", Collections.emptyList());
+        model.addAttribute("images", Collections.emptyList());
+        model.addAttribute("files", Collections.emptyList());
+        model.addAttribute("crumbs", Collections.emptyList());
+        model.addAttribute("embyLibraryId", "");
+        model.addAttribute("embyBrowseParentId", "");
+        try {
+            EmbyMediaItem item = embyApiService.getItem(accessToken, userId, itemId);
+            model.addAttribute("itemName", item != null && item.getName() != null ? item.getName() : "文件夹");
+            java.nio.file.Path root = rememberFolderRoot(itemId, localFolderRoot(item));
+            java.nio.file.Path dir = root == null ? null : fileMoveService.resolveInside(root, rel);
+            if (dir == null || !java.nio.file.Files.isDirectory(dir)) {
+                model.addAttribute("missing", true);
+                model.addAttribute("message", "找不到对应目录");
+                return "files";
+            }
+            FileMoveService.FolderListing listing = fileMoveService.listFolderLevel(dir);
+            String current = rel == null ? "" : rel.trim().replace('\\', '/');
+            while (current.startsWith("/")) {
+                current = current.substring(1);
+            }
+            model.addAttribute("rel", current);
+            model.addAttribute("crumbs", folderCrumbs(current));
+            model.addAttribute("directories", folderEntries(current, listing.getDirectories()));
+            model.addAttribute("images", imageEntries(current, listing.getImages()));
+            model.addAttribute("files", folderEntries(current, listing.getFiles()));
+            model.addAttribute("missing", false);
+            model.addAttribute("message", "");
+            populateEmbyFolderBrowseAttributes(accessToken, userId, item, current, libraryId, session, model);
+            return "files";
+        } catch (Exception e) {
+            log.error("打开本地目录失败 item={}", itemId, e);
+            model.addAttribute("itemName", "文件夹");
+            model.addAttribute("missing", true);
+            model.addAttribute("message", "找不到对应目录");
+            return "files";
+        }
+    }
+
+    @GetMapping("/api/files/check")
+    @ResponseBody
+    public Map<String, Object> checkLocalFolder(@RequestParam String itemId, HttpSession session) {
+        Map<String, Object> result = new HashMap<>();
+        String accessToken = (String) session.getAttribute("embyAccessToken");
+        String userId = (String) session.getAttribute("embyUserId");
+        if (!isLoggedIn(accessToken, userId)) {
+            result.put("success", false);
+            result.put("message", "未登录");
+            return result;
+        }
+        try {
+            EmbyMediaItem item = embyApiService.getItem(accessToken, userId, itemId);
+            if (localFolderRoot(item) == null) {
+                result.put("success", false);
+                result.put("message", "找不到对应目录");
+                return result;
+            }
+            result.put("success", true);
+        } catch (Exception e) {
+            log.warn("检查本地目录失败 item={}", itemId);
+            result.put("success", false);
+            result.put("message", "找不到对应目录");
+        }
+        return result;
+    }
+
+    @GetMapping("/api/files/image")
+    public ResponseEntity<org.springframework.core.io.Resource> localFolderImage(
+            @RequestParam String itemId,
+            @RequestParam String rel,
+            HttpSession session) {
+        String accessToken = (String) session.getAttribute("embyAccessToken");
+        String userId = (String) session.getAttribute("embyUserId");
+        if (!isLoggedIn(accessToken, userId)) {
+            return ResponseEntity.status(401).build();
+        }
+        try {
+            EmbyMediaItem item = embyApiService.getItem(accessToken, userId, itemId);
+            java.nio.file.Path root = rememberFolderRoot(itemId, localFolderRoot(item));
+            java.nio.file.Path file = fileMoveService.resolveInside(root, rel);
+            if (!fileMoveService.isImageFile(file)) {
+                return ResponseEntity.notFound().build();
+            }
+            String name = file.getFileName().toString().toLowerCase(java.util.Locale.ROOT);
+            MediaType type = MediaType.IMAGE_JPEG;
+            if (name.endsWith(".png")) {
+                type = MediaType.IMAGE_PNG;
+            } else if (name.endsWith(".gif")) {
+                type = MediaType.IMAGE_GIF;
+            } else if (name.endsWith(".webp")) {
+                type = MediaType.parseMediaType("image/webp");
+            } else if (name.endsWith(".bmp")) {
+                type = MediaType.parseMediaType("image/bmp");
+            }
+            return ResponseEntity.ok()
+                    .contentType(type)
+                    .body(new org.springframework.core.io.FileSystemResource(file));
+        } catch (Exception e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    @GetMapping("/api/files/thumb")
+    public ResponseEntity<org.springframework.core.io.Resource> localFolderThumb(
+            @RequestParam String itemId,
+            @RequestParam String rel,
+            HttpSession session) {
+        String accessToken = (String) session.getAttribute("embyAccessToken");
+        String userId = (String) session.getAttribute("embyUserId");
+        if (!isLoggedIn(accessToken, userId)) {
+            return ResponseEntity.status(401).build();
+        }
+        try {
+            java.nio.file.Path root = cachedFolderRoot(accessToken, userId, itemId);
+            java.nio.file.Path file = fileMoveService.resolveInside(root, rel);
+            java.nio.file.Path thumb = fileMoveService.ensureThumbnail(file);
+            if (thumb == null) {
+                return ResponseEntity.notFound().build();
+            }
+            return ResponseEntity.ok()
+                    .cacheControl(CacheControl.maxAge(1, TimeUnit.HOURS).cachePrivate())
+                    .contentType(MediaType.IMAGE_JPEG)
+                    .body(new org.springframework.core.io.FileSystemResource(thumb));
+        } catch (Exception e) {
+            log.warn("读取缩略图失败 item={} rel={}", itemId, rel);
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    @PostMapping("/api/files/delete")
+    @ResponseBody
+    public Map<String, Object> deleteLocalEntry(@RequestParam String itemId,
+                                                @RequestParam String rel,
+                                                HttpSession session) {
+        Map<String, Object> result = new HashMap<>();
+        String accessToken = (String) session.getAttribute("embyAccessToken");
+        String userId = (String) session.getAttribute("embyUserId");
+        if (!isLoggedIn(accessToken, userId)) {
+            result.put("success", false);
+            result.put("message", "未登录");
+            return result;
+        }
+        if (rel == null || rel.trim().isEmpty()) {
+            result.put("success", false);
+            result.put("message", "不能删除当前根目录");
+            return result;
+        }
+        try {
+            java.nio.file.Path root = cachedFolderRoot(accessToken, userId, itemId);
+            fileMoveService.deleteEntry(root, rel);
+            result.put("success", true);
+        } catch (Exception e) {
+            log.warn("删除本地文件失败 item={} rel={}", itemId, rel);
+            result.put("success", false);
+            result.put("message", e.getMessage() == null || e.getMessage().isEmpty() ? "删除失败" : e.getMessage());
+        }
+        return result;
+    }
+
+    @PostMapping("/api/files/rename")
+    @ResponseBody
+    public Map<String, Object> renameLocalEntry(@RequestParam String itemId,
+                                                @RequestParam String rel,
+                                                @RequestParam String name,
+                                                HttpSession session) {
+        Map<String, Object> result = new HashMap<>();
+        String accessToken = (String) session.getAttribute("embyAccessToken");
+        String userId = (String) session.getAttribute("embyUserId");
+        if (!isLoggedIn(accessToken, userId)) {
+            result.put("success", false);
+            result.put("message", "未登录");
+            return result;
+        }
+        if (rel == null || rel.trim().isEmpty()) {
+            result.put("success", false);
+            result.put("message", "不能重命名当前根目录");
+            return result;
+        }
+        try {
+            java.nio.file.Path root = cachedFolderRoot(accessToken, userId, itemId);
+            fileMoveService.renameEntry(root, rel, name);
+            result.put("success", true);
+        } catch (Exception e) {
+            log.warn("重命名本地文件失败 item={} rel={}", itemId, rel);
+            result.put("success", false);
+            result.put("message", e.getMessage() == null || e.getMessage().isEmpty() ? "重命名失败" : e.getMessage());
+        }
+        return result;
+    }
+
+    private java.nio.file.Path localFolderRoot(EmbyMediaItem item) {
+        if (item == null) {
+            return null;
+        }
+        if (item.getType() != null && "Folder".equalsIgnoreCase(item.getType())) {
+            return fileMoveService.toLocalDir(item.resolvePath());
+        }
+        return fileMoveService.toLocalContainingDir(item.resolvePath());
+    }
+
+    private java.nio.file.Path rememberFolderRoot(String itemId, java.nio.file.Path root) {
+        folderRootCache.put(itemId, new CachedFolderRoot(root, System.currentTimeMillis() + 60_000L));
+        return root;
+    }
+
+    private java.nio.file.Path cachedFolderRoot(String accessToken, String userId, String itemId) {
+        long now = System.currentTimeMillis();
+        CachedFolderRoot cached = folderRootCache.get(itemId);
+        if (cached != null && cached.expiresAt > now) {
+            return cached.path;
+        }
+        EmbyMediaItem item = embyApiService.getItem(accessToken, userId, itemId);
+        return rememberFolderRoot(itemId, localFolderRoot(item));
+    }
+
+    private List<Map<String, String>> imageEntries(String parentRel, List<String> names) {
+        List<Map<String, String>> entries = folderEntries(parentRel, names);
+        for (Map<String, String> entry : entries) {
+            entry.put("thumb", fileMoveService.canThumbnailName(entry.get("name")) ? "1" : "0");
+        }
+        return entries;
+    }
+
+    private static final class CachedFolderRoot {
+        private final java.nio.file.Path path;
+        private final long expiresAt;
+
+        private CachedFolderRoot(java.nio.file.Path path, long expiresAt) {
+            this.path = path;
+            this.expiresAt = expiresAt;
+        }
+    }
+
+    private List<Map<String, String>> folderCrumbs(String rel) {
+        List<Map<String, String>> crumbs = new ArrayList<>();
+        if (rel == null || rel.isEmpty()) {
+            return crumbs;
+        }
+        String[] parts = rel.split("/");
+        String acc = "";
+        for (String part : parts) {
+            if (part.isEmpty()) {
+                continue;
+            }
+            acc = acc.isEmpty() ? part : acc + "/" + part;
+            Map<String, String> crumb = new HashMap<>();
+            crumb.put("name", part);
+            crumb.put("rel", acc);
+            crumbs.add(crumb);
+        }
+        return crumbs;
+    }
+
+    private List<Map<String, String>> folderEntries(String parentRel, List<String> names) {
+        List<Map<String, String>> entries = new ArrayList<>();
+        if (names == null) {
+            return entries;
+        }
+        for (String name : names) {
+            Map<String, String> entry = new HashMap<>();
+            entry.put("name", name);
+            entry.put("rel", parentRel == null || parentRel.isEmpty() ? name : parentRel + "/" + name);
+            entries.add(entry);
+        }
+        return entries;
     }
 
     @PostMapping("/select-library")
@@ -420,6 +705,35 @@ public class EmbyController {
         } catch (Exception e) {
             result.put("success", false);
             result.put("message", e.getMessage());
+        }
+        return result;
+    }
+
+    @GetMapping("/api/media/{itemId}/path")
+    @ResponseBody
+    public Map<String, Object> apiGetMediaItemPath(@PathVariable String itemId, HttpSession session) {
+        Map<String, Object> result = new HashMap<>();
+        String accessToken = (String) session.getAttribute("embyAccessToken");
+        String userId = (String) session.getAttribute("embyUserId");
+        if (!isLoggedIn(accessToken, userId)) {
+            result.put("success", false);
+            result.put("message", "未登录");
+            return result;
+        }
+        try {
+            EmbyMediaItem item = embyApiService.getItem(accessToken, userId, itemId);
+            String path = item != null ? item.resolvePath() : null;
+            if (path == null || path.isEmpty()) {
+                result.put("success", false);
+                result.put("message", "暂无路径");
+            } else {
+                result.put("success", true);
+                result.put("path", path);
+            }
+        } catch (Exception e) {
+            log.error("获取媒体路径失败 itemId={}", itemId, e);
+            result.put("success", false);
+            result.put("message", "获取路径失败: " + e.getMessage());
         }
         return result;
     }
@@ -730,6 +1044,126 @@ public class EmbyController {
         }
         if ("480p".equals(r) || "480".equals(r) || "sd".equals(r)) {
             return "480p";
+        }
+        return null;
+    }
+
+    private void populateEmbyFolderBrowseAttributes(String token, String userId, EmbyMediaItem rootItem,
+                                                    String rel, String libraryIdParam, HttpSession session,
+                                                    Model model) {
+        if (rootItem == null) {
+            return;
+        }
+        String libraryId = blankParam(libraryIdParam);
+        if (libraryId == null) {
+            libraryId = (String) session.getAttribute("embyBrowseLibraryId");
+        }
+        String browseParentId = resolveEmbyBrowseFolderParent(token, userId, rootItem, rel, libraryId);
+        if (libraryId == null && browseParentId != null) {
+            libraryId = resolveLibraryIdForItem(token, userId, browseParentId);
+        }
+        if (browseParentId == null || browseParentId.isEmpty()) {
+            return;
+        }
+        if (libraryId == null || libraryId.isEmpty()) {
+            return;
+        }
+        model.addAttribute("embyLibraryId", libraryId);
+        model.addAttribute("embyBrowseParentId", browseParentId);
+    }
+
+    private static String blankParam(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return null;
+        }
+        return value.trim();
+    }
+
+    private String resolveEmbyBrowseFolderParent(String token, String userId, EmbyMediaItem rootItem, String rel,
+                                                 String libraryId) {
+        String parentId;
+        if (rootItem.getType() != null && "Folder".equalsIgnoreCase(rootItem.getType())) {
+            parentId = rootItem.getId();
+        } else if (rootItem.getParentId() != null && !rootItem.getParentId().isEmpty()) {
+            parentId = rootItem.getParentId();
+        } else if (libraryId != null && !libraryId.isEmpty()) {
+            parentId = libraryId;
+        } else {
+            parentId = null;
+        }
+        if (parentId == null || parentId.isEmpty()) {
+            return null;
+        }
+        if (rel == null || rel.trim().isEmpty()) {
+            return parentId;
+        }
+        String normalized = rel.trim().replace('\\', '/');
+        while (normalized.startsWith("/")) {
+            normalized = normalized.substring(1);
+        }
+        if (normalized.isEmpty()) {
+            return parentId;
+        }
+        String[] parts = normalized.split("/");
+        for (String part : parts) {
+            if (part.isEmpty()) {
+                continue;
+            }
+            String childId = findChildFolderId(token, userId, parentId, part);
+            if (childId == null) {
+                return parentId;
+            }
+            parentId = childId;
+        }
+        return parentId;
+    }
+
+    private String findChildFolderId(String token, String userId, String parentId, String folderName) {
+        try {
+            EmbyItemsResponse response = embyApiService.getItems(
+                    token, userId, parentId, false, "Folder",
+                    null, null, null, null,
+                    0, 500,
+                    EmbyApiService.DEFAULT_SORT_BY, EmbyApiService.DEFAULT_SORT_ORDER, null, null);
+            if (response.getItems() == null) {
+                return null;
+            }
+            for (EmbyMediaItem child : response.getItems()) {
+                if (child.getName() != null && child.getName().equalsIgnoreCase(folderName)) {
+                    return child.getId();
+                }
+            }
+        } catch (Exception e) {
+            log.warn("查找子文件夹失败 parent={} name={}", parentId, folderName);
+        }
+        return null;
+    }
+
+    private String resolveLibraryIdForItem(String token, String userId, String itemId) {
+        try {
+            List<EmbyLibrary> libraries = embyApiService.getLibraries(token, userId);
+            if (libraries == null || libraries.isEmpty()) {
+                return null;
+            }
+            Set<String> libraryIds = new HashSet<>();
+            for (EmbyLibrary lib : libraries) {
+                if (lib.getId() != null) {
+                    libraryIds.add(lib.getId());
+                }
+            }
+            String current = itemId;
+            for (int i = 0; i < 32 && current != null && !current.isEmpty(); i++) {
+                if (libraryIds.contains(current)) {
+                    return current;
+                }
+                EmbyMediaItem item = embyApiService.getItem(token, userId, current);
+                if (item == null || item.getParentId() == null || item.getParentId().isEmpty()) {
+                    break;
+                }
+                current = item.getParentId();
+            }
+        } catch (Exception e) {
+            log.warn("解析媒体库失败 item={}", itemId);
         }
         return null;
     }

@@ -33,7 +33,7 @@ public class EmbyApiService {
     private static final String DEFAULT_FIELDS =
             "BasicSyncInfo,CanDelete,Container,PrimaryImageAspectRatio,ProductionYear,Prefix,"
                     + "Genres,Tags,UserData,Overview,CommunityRating,OfficialRating,ChildCount,ImageTags,"
-                    + "Path,MediaSources";
+                    + "Path,MediaSources,ParentId";
 
     private static final Set<String> ALLOWED_SORT_BY = new HashSet<>(Arrays.asList(
             "CommunityRating", "Resolution", "DateCreated", "PremiereDate", "Size", "Container",
@@ -552,7 +552,7 @@ public class EmbyApiService {
                             .queryParam("Fields",
                                     "Overview,Genres,Tags,People,ProductionYear,CommunityRating,"
                                             + "UserData,ImageTags,PrimaryImageAspectRatio,RunTimeTicks,ChildCount,"
-                                            + "Path,MediaSources,Chapters")
+                                            + "Path,MediaSources,Chapters,ParentId,Type")
                             .build(userId, itemId))
                     .retrieve()
                     .bodyToMono(String.class)

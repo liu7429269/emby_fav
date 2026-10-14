@@ -74,7 +74,7 @@ public class MobileController {
         try {
             browsePageService.fillMedia(libraryId, parentId, tags, excludeTags, isFavorite, playStatus,
                     startIndex, limit, flat, view, sortBy, sortOrder,
-                    container, videoCodec, resolution, subtitle, session, model);
+                    container, videoCodec, resolution, subtitle, null, session, model);
             return "m/media";
         } catch (Exception e) {
             log.error("获取媒体项失败", e);

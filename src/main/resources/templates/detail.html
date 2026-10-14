@@ -216,6 +216,30 @@
             font-size: .95rem;
         }
         .modal .row { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; flex-wrap: wrap; }
+        #colSearch { width: 100%; margin-bottom: 12px; }
+        .col-list { max-height: 360px; overflow: auto; }
+        .col-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            background: #121212;
+            border: 1px solid #333;
+            color: var(--text);
+            border-radius: 6px;
+            padding: 8px 10px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            text-align: left;
+        }
+        .col-item:hover { background: #1e2a1e; border-color: var(--accent); }
+        .col-thumb {
+            width: 40px;
+            height: 56px;
+            border-radius: 4px;
+            background: #2a2a2a center/cover no-repeat;
+            flex-shrink: 0;
+        }
         .modal .btn {
             background: var(--accent);
             color: #fff;
@@ -430,6 +454,11 @@
                     th:data-played="${item.userDataInfo != null and item.userDataInfo.played == true}">
                 <span class="btn-icon">✓</span><span class="btn-label" th:text="${item.userDataInfo != null and item.userDataInfo.played == true} ? '已播放' : '标记已播放'">已播放</span>
             </button>
+            <button type="button" class="play-btn secondary" id="detailColBtn"
+                    th:data-id="${item.id}"
+                    th:if="${item != null and item.type != 'BoxSet' and item.type != 'Folder'}">添加到合集</button>
+            <button type="button" class="play-btn secondary" id="detailFolderBtn"
+                    th:data-id="${item.id}">打开文件夹</button>
             <button type="button" class="play-btn secondary" id="moveBtn">移动到新目录</button>
             <button type="button" class="play-btn danger" id="detailDelBtn"
                     th:data-id="${item.id}"
@@ -495,6 +524,18 @@
             </div>
         </div>
     </section>
+</div>
+
+<!-- 添加到合集 -->
+<div class="modal-mask" id="colMask">
+    <div class="modal">
+        <h2>添加到合集</h2>
+        <input type="search" id="colSearch" placeholder="输入合集名称筛选…" autocomplete="off">
+        <div class="col-list" id="colList">加载中…</div>
+        <div class="row">
+            <button class="btn secondary" id="colCancel" type="button">取消</button>
+        </div>
+    </div>
 </div>
 
 <!-- 移动弹窗 -->
@@ -618,6 +659,120 @@
                     })
                     .catch(function (err) { alert('请求失败: ' + err.message); })
                     .finally(function () { detailPotBtn.disabled = false; });
+            });
+        }
+
+        const detailFolderBtn = document.getElementById('detailFolderBtn');
+        if (detailFolderBtn) {
+            detailFolderBtn.addEventListener('click', function () {
+                const id = detailFolderBtn.getAttribute('data-id');
+                if (!id) return;
+                fetch('/api/files/check?itemId=' + encodeURIComponent(id))
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        if (!data.success) {
+                            alert(data.message || '找不到对应目录');
+                            return;
+                        }
+                        window.open('/files?itemId=' + encodeURIComponent(id), '_blank');
+                    })
+                    .catch(function (err) { alert('请求失败: ' + err.message); });
+            });
+        }
+
+        /* 添加到合集 */
+        const colMask = document.getElementById('colMask');
+        const colList = document.getElementById('colList');
+        const colSearch = document.getElementById('colSearch');
+        let allCollections = [];
+        function collectionDisplayName(c) {
+            return String(c.Name || c.name || c.Id || c.id || '');
+        }
+        function filterCollectionsByQuery(query) {
+            const q = (query || '').trim().toLowerCase();
+            if (!q) return allCollections;
+            return allCollections.filter(function (c) {
+                return collectionDisplayName(c).toLowerCase().indexOf(q) !== -1;
+            });
+        }
+        function renderColList(cols) {
+            if (!colList) return;
+            colList.innerHTML = '';
+            if (!cols.length) {
+                colList.textContent = allCollections.length ? '没有匹配的合集' : '还没有合集';
+                return;
+            }
+            cols.forEach(function (c) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'col-item';
+                const thumb = document.createElement('div');
+                thumb.className = 'col-thumb';
+                const colId = c.Id || c.id;
+                const colName = collectionDisplayName(c) || colId;
+                if (colId) thumb.style.backgroundImage = 'url(/api/image/' + encodeURIComponent(colId) + '?type=Primary&maxHeight=120)';
+                const name = document.createElement('span');
+                name.textContent = colName;
+                btn.appendChild(thumb);
+                btn.appendChild(name);
+                btn.addEventListener('click', function () {
+                    if (!itemId) return;
+                    btn.disabled = true;
+                    fetch('/api/collections/' + encodeURIComponent(colId) + '/items', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ itemIds: [itemId] })
+                    }).then(function (r) { return r.json(); }).then(function (res) {
+                        if (!res.success) {
+                            alert(res.message || '添加失败');
+                            btn.disabled = false;
+                            return;
+                        }
+                        if (colMask) colMask.classList.remove('show');
+                        allCollections = [];
+                        alert('已添加到合集');
+                    }).catch(function (err) {
+                        alert('请求失败: ' + err.message);
+                        btn.disabled = false;
+                    });
+                });
+                colList.appendChild(btn);
+            });
+        }
+        function loadCollectionsModal() {
+            if (!colList) return;
+            colList.textContent = '加载中…';
+            if (colSearch) colSearch.value = '';
+            allCollections = [];
+            fetch('/api/collections').then(function (r) { return r.json(); }).then(function (data) {
+                if (!data.success) {
+                    colList.textContent = data.message || '加载失败';
+                    return;
+                }
+                allCollections = data.collections || [];
+                renderColList(filterCollectionsByQuery(colSearch ? colSearch.value : ''));
+            }).catch(function (err) {
+                colList.textContent = '请求失败: ' + err.message;
+            });
+        }
+        const detailColBtn = document.getElementById('detailColBtn');
+        if (detailColBtn && colMask) {
+            detailColBtn.addEventListener('click', function () {
+                colMask.classList.add('show');
+                loadCollectionsModal();
+                if (colSearch) colSearch.focus();
+            });
+        }
+        const colCancel = document.getElementById('colCancel');
+        if (colCancel && colMask) {
+            colCancel.addEventListener('click', function () {
+                colMask.classList.remove('show');
+                allCollections = [];
+            });
+        }
+        if (colSearch) {
+            colSearch.addEventListener('input', function () {
+                renderColList(filterCollectionsByQuery(colSearch.value));
             });
         }
 

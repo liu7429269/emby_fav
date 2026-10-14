@@ -5,7 +5,20 @@ import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import javax.imageio.IIOImage;
+import javax.imageio.ImageIO;
+import javax.imageio.ImageReadParam;
+import javax.imageio.ImageReader;
+import javax.imageio.ImageWriteParam;
+import javax.imageio.ImageWriter;
+import javax.imageio.stream.ImageInputStream;
+import javax.imageio.stream.ImageOutputStream;
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -14,11 +27,13 @@ import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -31,10 +46,17 @@ import java.util.stream.Stream;
 public class FileMoveService {
 
     private static final int MAX_DEPTH = 4;
+    private static final int THUMB_EDGE = 360;
+
+    private final ConcurrentHashMap<String, Object> thumbLocks = new ConcurrentHashMap<>();
 
     private static final Set<String> VIDEO_EXTENSIONS = new HashSet<>(Arrays.asList(
             "mp4", "mkv", "avi", "m2ts", "ts", "mts", "wmv", "mov", "flv", "webm",
             "mpg", "mpeg", "m4v", "iso", "rmvb"
+    ));
+
+    private static final Set<String> IMAGE_EXTENSIONS = new HashSet<>(Arrays.asList(
+            "jpg", "jpeg", "png", "gif", "webp", "bmp"
     ));
 
     private final ConcurrentHashMap<String, MoveTask> tasks = new ConcurrentHashMap<>();
@@ -681,6 +703,353 @@ public class FileMoveService {
 
     public MoveTask getProgress(String taskId) {
         return tasks.get(taskId);
+    }
+
+    /** 把 Emby 返回的本地目录路径解析成当前进程可见的目录。远程地址或不存在时返回 null。 */
+    public Path toLocalDir(String rawPath) {
+        if (rawPath == null || isRemotePath(rawPath)) {
+            return null;
+        }
+        String normalized = normalizePath(rawPath);
+        if (normalized == null) {
+            return null;
+        }
+        try {
+            Path dir = Paths.get(normalized).normalize();
+            if (!Files.isDirectory(dir)) {
+                return null;
+            }
+            return dir.toRealPath();
+        } catch (IOException e) {
+            log.warn("本地目录不可访问: {}", rawPath);
+            return null;
+        }
+    }
+
+    /**
+     * 目录路径用目录本身，文件路径用它所在的父目录。远程路径或不存在时返回 null。
+     */
+    public Path toLocalContainingDir(String rawPath) {
+        if (rawPath == null || isRemotePath(rawPath)) {
+            return null;
+        }
+        String normalized = normalizePath(rawPath);
+        if (normalized == null) {
+            return null;
+        }
+        try {
+            Path path = Paths.get(normalized).normalize();
+            if (Files.isDirectory(path)) {
+                return path.toRealPath();
+            }
+            if (Files.isRegularFile(path)) {
+                Path parent = path.getParent();
+                if (parent != null && Files.isDirectory(parent)) {
+                    return parent.toRealPath();
+                }
+            }
+            return null;
+        } catch (IOException e) {
+            log.warn("本地路径不可访问: {}", rawPath);
+            return null;
+        }
+    }
+
+    /**
+     * 把相对路径解析到 root 之内。空相对路径就是 root。
+     * 含 .. 或符号链接逃出 root 时返回 null。
+     */
+    public Path resolveInside(Path root, String relative) {
+        if (root == null) {
+            return null;
+        }
+        try {
+            Path rootReal = root.toRealPath();
+            String rel = relative == null ? "" : relative.trim().replace('\\', '/');
+            while (rel.startsWith("/")) {
+                rel = rel.substring(1);
+            }
+            if (rel.contains("\0")) {
+                return null;
+            }
+            Path target = rel.isEmpty() ? rootReal : rootReal.resolve(rel).normalize();
+            if (!target.startsWith(rootReal)) {
+                return null;
+            }
+            if (Files.exists(target)) {
+                Path real = target.toRealPath();
+                if (!real.startsWith(rootReal)) {
+                    return null;
+                }
+                return real;
+            }
+            return target;
+        } catch (IOException e) {
+            log.warn("解析目录内路径失败 root={} rel={}", root, relative);
+            return null;
+        }
+    }
+
+    public boolean isImageFile(Path file) {
+        if (file == null || !Files.isRegularFile(file)) {
+            return false;
+        }
+        String name = file.getFileName() == null ? "" : file.getFileName().toString();
+        int dot = name.lastIndexOf('.');
+        if (dot < 0 || dot == name.length() - 1) {
+            return false;
+        }
+        return IMAGE_EXTENSIONS.contains(name.substring(dot + 1).toLowerCase(Locale.ROOT));
+    }
+
+    /** 只列这一层：子目录、图片、以及其他文件。 */
+    public FolderListing listFolderLevel(Path dir) {
+        FolderListing listing = new FolderListing();
+        if (dir == null || !Files.isDirectory(dir)) {
+            return listing;
+        }
+        try (DirectoryStream<Path> ds = Files.newDirectoryStream(dir)) {
+            for (Path child : ds) {
+                String name = child.getFileName() == null ? "" : child.getFileName().toString();
+                if (name.isEmpty() || ".".equals(name) || "..".equals(name)) {
+                    continue;
+                }
+                if (Files.isDirectory(child)) {
+                    listing.getDirectories().add(name);
+                } else if (Files.isRegularFile(child) && isImageFile(child)) {
+                    listing.getImages().add(name);
+                } else if (Files.isRegularFile(child)) {
+                    listing.getFiles().add(name);
+                }
+            }
+        } catch (IOException e) {
+            log.error("列出目录内容失败: {}", dir, e);
+        }
+        listing.getDirectories().sort(String::compareToIgnoreCase);
+        listing.getImages().sort(String::compareToIgnoreCase);
+        listing.getFiles().sort(String::compareToIgnoreCase);
+        return listing;
+    }
+
+    /** 删除根目录内的文件，或连同内容删除子目录。空相对路径和根目录本身拒绝。 */
+    public void deleteEntry(Path root, String relative) throws IOException {
+        if (root == null) {
+            throw new IOException("找不到对应目录");
+        }
+        Path rootReal = root.toRealPath();
+        Path target = resolveInside(root, relative);
+        if (target == null || !Files.exists(target) || target.equals(rootReal)) {
+            throw new IOException("找不到对应文件");
+        }
+        if (Files.isDirectory(target)) {
+            Files.walkFileTree(target, new SimpleFileVisitor<Path>() {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    Files.delete(file);
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+                    if (exc != null) {
+                        throw exc;
+                    }
+                    Files.delete(dir);
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+            return;
+        }
+        Files.delete(target);
+    }
+
+    /** 在同一目录内重命名。新名字不能包含路径分隔符或 ..，也不覆盖已有名字。 */
+    public void renameEntry(Path root, String relative, String newName) throws IOException {
+        if (root == null) {
+            throw new IOException("找不到对应目录");
+        }
+        if (!isSafeEntryName(newName)) {
+            throw new IOException("名字不合法");
+        }
+        String name = newName.trim();
+        Path rootReal = root.toRealPath();
+        Path target = resolveInside(root, relative);
+        if (target == null || !Files.exists(target) || target.equals(rootReal)) {
+            throw new IOException("找不到对应文件");
+        }
+        if (name.equals(target.getFileName().toString())) {
+            return;
+        }
+        Path parent = target.getParent();
+        if (parent == null) {
+            throw new IOException("名字不合法");
+        }
+        Path parentReal = parent.toRealPath();
+        if (!parentReal.startsWith(rootReal)) {
+            throw new IOException("名字不合法");
+        }
+        Path dest = parentReal.resolve(name).normalize();
+        if (!dest.startsWith(parentReal)) {
+            throw new IOException("名字不合法");
+        }
+        if (Files.exists(dest)) {
+            throw new IOException("已存在同名文件");
+        }
+        Files.move(target, dest);
+    }
+
+    private static boolean isSafeEntryName(String name) {
+        if (name == null) {
+            return false;
+        }
+        String n = name.trim();
+        if (n.isEmpty() || ".".equals(n) || "..".equals(n)) {
+            return false;
+        }
+        return n.indexOf('/') < 0 && n.indexOf('\\') < 0 && n.indexOf('\0') < 0 && !n.contains("..");
+    }
+
+    /** jpg/png/gif/bmp 可以生成缩略图。webp 当前 JDK 读不了。 */
+    public boolean canThumbnailName(String name) {
+        if (name == null) {
+            return false;
+        }
+        String lower = name.toLowerCase(Locale.ROOT);
+        return lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".png")
+                || lower.endsWith(".gif") || lower.endsWith(".bmp");
+    }
+
+    /**
+     * 生成或返回已缓存的 JPEG 缩略图。长边 360。失败返回 null。
+     */
+    public Path ensureThumbnail(Path source) {
+        if (source == null || !canThumbnailName(source.getFileName() == null ? "" : source.getFileName().toString())
+                || !Files.isRegularFile(source)) {
+            return null;
+        }
+        try {
+            Path real = source.toRealPath();
+            BasicFileAttributes attrs = Files.readAttributes(real, BasicFileAttributes.class);
+            String key = real.toString() + "|" + attrs.lastModifiedTime().toMillis() + "|" + attrs.size();
+            String hash = sha256(key);
+            Path cacheDir = Paths.get(System.getProperty("java.io.tmpdir"), "emby-fav-thumbs");
+            Files.createDirectories(cacheDir);
+            Path dest = cacheDir.resolve(hash + ".jpg");
+            Object lock = thumbLocks.computeIfAbsent(hash, k -> new Object());
+            synchronized (lock) {
+                if (Files.isRegularFile(dest) && Files.size(dest) > 0) {
+                    return dest;
+                }
+                writeThumbnail(real, dest);
+                return Files.isRegularFile(dest) ? dest : null;
+            }
+        } catch (Exception e) {
+            log.warn("生成缩略图失败: {}", source, e);
+            return null;
+        }
+    }
+
+    private void writeThumbnail(Path source, Path dest) throws IOException {
+        BufferedImage sampled = readSubsampled(source, THUMB_EDGE);
+        if (sampled == null) {
+            throw new IOException("无法读取图片");
+        }
+        BufferedImage thumb = scaleToEdge(sampled, THUMB_EDGE);
+        Path tmp = dest.resolveSibling(dest.getFileName().toString() + ".part");
+        ImageWriter writer = null;
+        try (ImageOutputStream out = ImageIO.createImageOutputStream(tmp.toFile())) {
+            Iterator<ImageWriter> writers = ImageIO.getImageWritersByFormatName("jpg");
+            if (!writers.hasNext()) {
+                throw new IOException("没有 JPEG 编码器");
+            }
+            writer = writers.next();
+            writer.setOutput(out);
+            ImageWriteParam param = writer.getDefaultWriteParam();
+            if (param.canWriteCompressed()) {
+                param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+                param.setCompressionQuality(0.75f);
+            }
+            writer.write(null, new IIOImage(thumb, null, null), param);
+        } finally {
+            if (writer != null) {
+                writer.dispose();
+            }
+        }
+        try {
+            Files.move(tmp, dest, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        } catch (IOException atomicFailed) {
+            Files.move(tmp, dest, StandardCopyOption.REPLACE_EXISTING);
+        }
+    }
+
+    private BufferedImage readSubsampled(Path source, int edge) throws IOException {
+        try (ImageInputStream in = ImageIO.createImageInputStream(source.toFile())) {
+            if (in == null) {
+                return null;
+            }
+            Iterator<ImageReader> readers = ImageIO.getImageReaders(in);
+            if (!readers.hasNext()) {
+                return null;
+            }
+            ImageReader reader = readers.next();
+            try {
+                reader.setInput(in, true, true);
+                int width = reader.getWidth(0);
+                int height = reader.getHeight(0);
+                int sample = Math.max(1, Math.max(width, height) / edge);
+                ImageReadParam param = reader.getDefaultReadParam();
+                param.setSourceSubsampling(sample, sample, 0, 0);
+                return reader.read(0, param);
+            } finally {
+                reader.dispose();
+            }
+        }
+    }
+
+    private BufferedImage scaleToEdge(BufferedImage src, int edge) {
+        int width = src.getWidth();
+        int height = src.getHeight();
+        int longEdge = Math.max(width, height);
+        int targetW = width;
+        int targetH = height;
+        if (longEdge > edge) {
+            double scale = (double) edge / longEdge;
+            targetW = Math.max(1, (int) Math.round(width * scale));
+            targetH = Math.max(1, (int) Math.round(height * scale));
+        }
+        BufferedImage out = new BufferedImage(targetW, targetH, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = out.createGraphics();
+        try {
+            g.setColor(Color.WHITE);
+            g.fillRect(0, 0, targetW, targetH);
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g.drawImage(src, 0, 0, targetW, targetH, null);
+        } finally {
+            g.dispose();
+        }
+        return out;
+    }
+
+    private static String sha256(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] bytes = digest.digest(value.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder(bytes.length * 2);
+            for (byte b : bytes) {
+                sb.append(Character.forDigit((b >> 4) & 0xF, 16));
+                sb.append(Character.forDigit(b & 0xF, 16));
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            return Integer.toHexString(value.hashCode());
+        }
+    }
+
+    @Data
+    public static class FolderListing {
+        private List<String> directories = new ArrayList<>();
+        private List<String> images = new ArrayList<>();
+        private List<String> files = new ArrayList<>();
     }
 
     @Data

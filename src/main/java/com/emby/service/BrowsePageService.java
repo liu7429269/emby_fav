@@ -58,7 +58,7 @@ public class BrowsePageService {
                           Boolean isFavorite, String playStatus, int startIndex, int limit,
                           String flat, String view, String sortBy, String sortOrder,
                           String container, String videoCodec, String resolution, String subtitle,
-                          HttpSession session, Model model) {
+                          String folderQ, HttpSession session, Model model) {
         String accessToken = (String) session.getAttribute("embyAccessToken");
         String userId = (String) session.getAttribute("embyUserId");
         int effectiveLimit = normalizeLimit(limit);
@@ -67,7 +67,12 @@ public class BrowsePageService {
         String viewMode = resolveView(view, flat);
         boolean wantCollection = "collection".equals(viewMode);
         boolean wantFlat = "movie".equals(viewMode);
+        String folderQuery = blankToNull(folderQ);
+        boolean folderNameSearch = "folder".equals(viewMode) && folderQuery != null;
+        boolean folderView = "folder".equals(viewMode);
         String effectivePlayStatus = wantCollection ? null : resolvePlayStatus(playStatus);
+        // 文件夹浏览不按播放状态筛；否则默认「未播放」会让 hasFilters 为真，误走电影平铺查询
+        String queryPlayStatus = (wantCollection || folderView) ? null : effectivePlayStatus;
         String selectedContainer = blankToNull(container);
         String selectedVideoCodec = blankToNull(videoCodec);
         String selectedResolution = normalizeResolution(resolution);
@@ -80,13 +85,20 @@ public class BrowsePageService {
         boolean hasFilters = (tags != null && !tags.isEmpty())
                 || (excludeTags != null && !excludeTags.isEmpty())
                 || Boolean.TRUE.equals(isFavorite)
-                || effectivePlayStatus != null
-                || !mediaFilter.isEmpty();
+                || queryPlayStatus != null
+                || (!folderView && !mediaFilter.isEmpty());
         boolean recursive;
         String includeTypes;
+        String searchTerm = null;
+        MediaInfoFilter queryFilter = mediaFilter;
 
         EmbyLibrary currentLibrary = findLibrary(accessToken, userId, libraryId);
-        if (wantCollection && effectiveParent.equals(libraryId)) {
+        if (folderNameSearch) {
+            recursive = true;
+            includeTypes = "Folder";
+            searchTerm = folderQuery;
+            queryFilter = null;
+        } else if (wantCollection && effectiveParent.equals(libraryId)) {
             recursive = true;
             includeTypes = "BoxSet";
             effectiveParent = libraryId;
@@ -110,18 +122,35 @@ public class BrowsePageService {
 
         EmbyItemsResponse itemsResponse = embyApiService.getItems(
                 accessToken, userId, effectiveParent, recursive, includeTypes,
-                tags, excludeTags, isFavorite, effectivePlayStatus, startIndex, effectiveLimit,
-                effectiveSortBy, effectiveSortOrder, null, mediaFilter);
+                folderNameSearch ? null : tags,
+                folderNameSearch ? null : excludeTags,
+                folderNameSearch ? null : isFavorite,
+                folderNameSearch ? null : queryPlayStatus,
+                startIndex, effectiveLimit,
+                effectiveSortBy, effectiveSortOrder, searchTerm, queryFilter);
 
-        if (!recursive && !hasFilters && !wantFlat && !wantCollection && effectiveParent.equals(libraryId)
+        if (!folderNameSearch && !recursive && !hasFilters && !wantFlat && !wantCollection && effectiveParent.equals(libraryId)
                 && (itemsResponse.getItems() == null || itemsResponse.getItems().isEmpty())
                 && currentLibrary != null && !"boxsets".equalsIgnoreCase(currentLibrary.getCollectionType())) {
             recursive = true;
             includeTypes = "Movie,Series";
             itemsResponse = embyApiService.getItems(
                     accessToken, userId, effectiveParent, true, includeTypes,
-                    tags, excludeTags, isFavorite, effectivePlayStatus, startIndex, effectiveLimit,
+                    tags, excludeTags, isFavorite, queryPlayStatus, startIndex, effectiveLimit,
                     effectiveSortBy, effectiveSortOrder, null, mediaFilter);
+        }
+
+        String folderParentId = null;
+        if (folderView && !folderNameSearch && !effectiveParent.equals(libraryId)) {
+            try {
+                EmbyMediaItem currentFolder = embyApiService.getItem(accessToken, userId, effectiveParent);
+                if (currentFolder != null && currentFolder.getParentId() != null
+                        && !currentFolder.getParentId().isEmpty()) {
+                    folderParentId = currentFolder.getParentId();
+                }
+            } catch (Exception e) {
+                log.warn("获取上级文件夹失败 parent={}", effectiveParent, e);
+            }
         }
 
         List<EmbyTag> tagList = embyApiService.getTags(accessToken, userId);
@@ -145,6 +174,8 @@ public class BrowsePageService {
         model.addAttribute("viewMode", viewMode);
         model.addAttribute("searchScope", libraryId);
         model.addAttribute("searchQuery", "");
+        model.addAttribute("folderQuery", folderQuery != null ? folderQuery : "");
+        model.addAttribute("folderParentId", folderParentId);
         model.addAttribute("sortBy", effectiveSortBy);
         model.addAttribute("sortOrder", effectiveSortOrder);
         model.addAttribute("selectedContainer", selectedContainer != null ? selectedContainer : "");
@@ -166,6 +197,9 @@ public class BrowsePageService {
         model.addAttribute("currentLibrary", currentLibrary);
         model.addAttribute("embyServerUrl", embyProperties.getUrl());
         model.addAttribute("userName", session.getAttribute("embyUserName"));
+        if (libraryId != null && !libraryId.isEmpty()) {
+            session.setAttribute("embyBrowseLibraryId", libraryId);
+        }
     }
 
     public void fillDetail(String itemId, String libraryId, String parentId, String flat,
@@ -199,6 +233,9 @@ public class BrowsePageService {
         model.addAttribute("libraries", embyApiService.getLibraries(accessToken, userId));
         model.addAttribute("searchScope", "all");
         model.addAttribute("searchQuery", "");
+        if (libraryId != null && !libraryId.isEmpty()) {
+            session.setAttribute("embyBrowseLibraryId", libraryId);
+        }
     }
 
     public void fillSearch(String q, String scope, int startIndex, int limit,
