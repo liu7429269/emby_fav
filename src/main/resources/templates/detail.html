@@ -374,7 +374,7 @@
      th:style="${item != null} ? |background-image:url(/api/image/${item.id}?type=Backdrop&amp;maxHeight=720)| : ''">
     <div class="topbar">
         <a class="back"
-           th:href="${libraryId != null} ? @{/media(libraryId=${libraryId}, parentId=${parentId}, flat=${flat}, tags=${selectedTags}, excludeTags=${selectedExcludeTags}, isFavorite=${isFavorite}, playStatus=${playStatus}, startIndex=${startIndex}, limit=${limit}, sortBy=${sortBy}, sortOrder=${sortOrder})} : @{/libraries}">← 返回</a>
+           th:href="${libraryId != null} ? @{/media(libraryId=${libraryId}, parentId=${parentId}, flat=${flat}, tags=${selectedTags}, excludeTags=${selectedExcludeTags}, isFavorite=${isFavorite}, playStatus=${playStatus}, startIndex=${startIndex}, limit=${limit}, sortBy=${sortBy}, sortOrder=${sortOrder}, container=${selectedContainer}, videoCodec=${selectedVideoCodec}, resolution=${selectedResolution}, subtitle=${selectedSubtitle})} : @{/libraries}">← 返回</a>
         <form class="top-search" action="/search" method="get">
             <select name="scope">
                 <option value="all" th:selected="${searchScope == null or searchScope == 'all'}">全局</option>

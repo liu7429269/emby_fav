@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>登录 - Emby 手机版</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/m.css">
+</head>
+<body>
+<div class="login-wrap">
+    <h1>Emby <span>Browse</span></h1>
+    <p class="hint">手机版 · 使用 Emby 账号登录</p>
+    <div class="error-box" id="errorBox"></div>
+    <form id="loginForm">
+        <div class="field">
+            <label for="server">服务器地址</label>
+            <input type="text" id="server" required th:value="${embyServerUrl}" placeholder="http://emby:8096">
+        </div>
+        <div class="field">
+            <label for="username">用户名</label>
+            <input type="text" id="username" required th:value="${defaultUsername}" placeholder="Emby 用户名">
+        </div>
+        <div class="field">
+            <label for="password">密码</label>
+            <input type="password" id="password" required th:value="${defaultPassword}" placeholder="Emby 密码">
+        </div>
+        <label class="toggle">
+            <input type="checkbox" id="remember">
+            记住服务器、账号和密码
+        </label>
+        <button type="submit" class="btn" id="loginBtn">登录</button>
+        <div class="loading-hint" id="loadingHint"></div>
+    </form>
+    <div class="foot-link"><a href="/login">桌面版</a></div>
+</div>
+<script>
+    (function () {
+        var KEY = 'embyBrowseLogin';
+        var serverEl = document.getElementById('server');
+        var userEl = document.getElementById('username');
+        var pwdEl = document.getElementById('password');
+        var rememberEl = document.getElementById('remember');
+        try {
+            var saved = JSON.parse(localStorage.getItem(KEY) || '{}');
+            if (saved.server) serverEl.value = saved.server;
+            if (saved.username) userEl.value = saved.username;
+            if (saved.password) pwdEl.value = saved.password;
+            if (saved.remember) rememberEl.checked = true;
+        } catch (e) {}
+        document.getElementById('loginForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+            var btn = document.getElementById('loginBtn');
+            var hint = document.getElementById('loadingHint');
+            var original = btn.textContent;
+            var server = serverEl.value.trim();
+            var username = userEl.value.trim();
+            var password = pwdEl.value;
+            if (!server || !username || !password) { showError('请填写完整信息'); return; }
+            btn.disabled = true;
+            btn.textContent = '登录中...';
+            hint.textContent = '正在连接 Emby…';
+            hideError();
+            try {
+                if (rememberEl.checked) {
+                    localStorage.setItem(KEY, JSON.stringify({
+                        server: server, username: username, password: password, remember: true
+                    }));
+                } else {
+                    localStorage.removeItem(KEY);
+                }
+            } catch (err) {}
+            var formData = new FormData();
+            formData.append('server', server);
+            formData.append('username', username);
+            formData.append('password', password);
+            var controller = new AbortController();
+            var timeoutId = setTimeout(function () { controller.abort(); }, 30000);
+            fetch('/api/login', { method: 'POST', body: formData, signal: controller.signal })
+                .then(function (r) {
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    return r.json();
+                })
+                .then(function (data) {
+                    if (data.success) {
+                        hint.textContent = '登录成功';
+                        window.location.href = '/m/libraries';
+                        return;
+                    }
+                    showError(data.message || '登录失败');
+                    reset();
+                })
+                .catch(function (err) {
+                    showError(err.name === 'AbortError' ? '登录超时' : ('登录失败: ' + err.message));
+                    reset();
+                })
+                .finally(function () { clearTimeout(timeoutId); });
+            function reset() {
+                btn.disabled = false;
+                btn.textContent = original;
+                hint.textContent = '';
+            }
+        });
+        function hideError() { document.getElementById('errorBox').classList.remove('show'); }
+        function showError(msg) {
+            var box = document.getElementById('errorBox');
+            box.textContent = msg;
+            box.classList.add('show');
+        }
+    })();
+</script>
+</body>
+</html>

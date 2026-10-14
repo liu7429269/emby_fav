@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>媒体库 - Emby 手机版</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/m.css">
+</head>
+<body>
+<div class="topbar">
+    <div class="title">媒体库</div>
+    <a class="icon-btn" href="/m/search" title="搜索">搜</a>
+    <a class="text-btn" href="/m/logout">退出</a>
+</div>
+<div class="page">
+    <p class="sub" th:text="${userName}">用户</p>
+    <div class="grid-libs" th:if="${libraries != null and !libraries.isEmpty()}">
+        <a class="lib-card" th:each="lib : ${libraries}" th:href="@{/m/media(libraryId=${lib.id})}">
+            <div class="lib-cover" th:style="|background-image:url(/api/image/${lib.id}?type=Primary&amp;maxHeight=400)|"></div>
+            <div class="lib-meta">
+                <h2 th:text="${lib.name}">库名</h2>
+                <p th:if="${lib.childCount != null}" th:text="'约 ' + ${lib.childCount} + ' 项'">子项</p>
+            </div>
+        </a>
+    </div>
+    <div class="empty" th:if="${libraries == null or libraries.isEmpty()}">还没有媒体库</div>
+    <div class="foot-link"><a href="/libraries">桌面版</a></div>
+</div>
+</body>
+</html>

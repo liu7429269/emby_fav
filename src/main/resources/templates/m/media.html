@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title th:text="${currentLibrary != null ? currentLibrary.name : '浏览'}">浏览</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/m.css">
+</head>
+<body>
+<div class="topbar">
+    <a class="icon-btn" href="/m/libraries">←</a>
+    <div class="title" th:text="${currentLibrary != null ? currentLibrary.name : '浏览'}">库</div>
+    <a class="icon-btn" th:href="@{/m/search(scope=${selectedLibraryId})}">搜</a>
+    <button type="button" class="icon-btn" id="filterBtn"
+            th:classappend="${hasAnyFilter} ? ' active'">筛</button>
+</div>
+
+<div class="view-tabs">
+    <a th:classappend="${viewMode == 'movie'} ? ' active'"
+       th:href="@{/m/media(libraryId=${selectedLibraryId}, view=movie, flat=1, tags=${selectedTags}, excludeTags=${selectedExcludeTags}, isFavorite=${isFavorite}, playStatus=${playStatus}, limit=${limit}, sortBy=${sortBy}, sortOrder=${sortOrder}, container=${selectedContainer}, videoCodec=${selectedVideoCodec}, resolution=${selectedResolution}, subtitle=${selectedSubtitle})}">电影</a>
+    <a th:classappend="${viewMode == 'folder'} ? ' active'"
+       th:href="@{/m/media(libraryId=${selectedLibraryId}, view=folder, flat=0, tags=${selectedTags}, excludeTags=${selectedExcludeTags}, isFavorite=${isFavorite}, playStatus=${playStatus}, limit=${limit}, sortBy=${sortBy}, sortOrder=${sortOrder}, container=${selectedContainer}, videoCodec=${selectedVideoCodec}, resolution=${selectedResolution}, subtitle=${selectedSubtitle})}">文件夹</a>
+    <a th:classappend="${viewMode == 'collection'} ? ' active'"
+       th:href="@{/m/media(libraryId=${selectedLibraryId}, view=collection, tags=${selectedTags}, excludeTags=${selectedExcludeTags}, isFavorite=${isFavorite}, playStatus=${playStatus}, limit=${limit}, sortBy=${sortBy}, sortOrder=${sortOrder}, container=${selectedContainer}, videoCodec=${selectedVideoCodec}, resolution=${selectedResolution}, subtitle=${selectedSubtitle})}">合集</a>
+</div>
+<div class="stats">
+    共 <span th:text="${totalRecordCount != null ? totalRecordCount : 0}">0</span> 项
+    · <span th:if="${viewMode == 'movie'}">电影</span>
+    <span th:if="${viewMode == 'folder'}">文件夹</span>
+    <span th:if="${viewMode == 'collection'}">合集</span>
+</div>
+
+<div class="page" style="padding-top:0;">
+    <div class="grid-cards" th:if="${mediaItems != null and !mediaItems.isEmpty()}">
+        <th:block th:each="item : ${mediaItems}">
+            <a class="card"
+               th:if="${item.isFolder == true or item.type == 'Folder' or item.type == 'BoxSet' or item.type == 'CollectionFolder'}"
+               th:href="@{/m/media(libraryId=${selectedLibraryId}, parentId=${item.id}, view=folder, flat=0, tags=${selectedTags}, excludeTags=${selectedExcludeTags}, isFavorite=${isFavorite}, playStatus=${playStatus}, limit=${limit}, sortBy=${sortBy}, sortOrder=${sortOrder}, container=${selectedContainer}, videoCodec=${selectedVideoCodec}, resolution=${selectedResolution}, subtitle=${selectedSubtitle})}">
+                <div class="poster folder" th:style="|background-image:url(/api/image/${item.id}?type=Primary&amp;maxHeight=360)|">
+                    <span class="type-tag" th:text="${item.type}">Folder</span>
+                </div>
+                <div class="info">
+                    <h3 th:text="${item.name}">名称</h3>
+                </div>
+            </a>
+            <div class="card" th:unless="${item.isFolder == true or item.type == 'Folder' or item.type == 'BoxSet' or item.type == 'CollectionFolder'}"
+                 th:data-id="${item.id}">
+                <a th:href="@{/m/media/item/{id}(id=${item.id}, libraryId=${selectedLibraryId}, parentId=${parentId}, flat=${wantFlat ? 1 : 0}, tags=${selectedTags}, excludeTags=${selectedExcludeTags}, isFavorite=${isFavorite}, playStatus=${playStatus}, startIndex=${startIndex}, limit=${limit}, sortBy=${sortBy}, sortOrder=${sortOrder}, container=${selectedContainer}, videoCodec=${selectedVideoCodec}, resolution=${selectedResolution}, subtitle=${selectedSubtitle})}">
+                    <div class="poster" th:style="|background-image:url(/api/image/${item.id}?type=Primary&amp;maxHeight=400)|">
+                        <span class="type-tag" th:text="${item.type}">Movie</span>
+                        <button type="button" class="more-dot"
+                                th:data-id="${item.id}"
+                                th:data-name="${item.name}"
+                                th:data-fav="${item.userDataInfo != null and item.userDataInfo.isFavorite == true}"
+                                th:data-played="${item.userDataInfo != null and item.userDataInfo.played == true}"
+                                onclick="event.preventDefault();event.stopPropagation();openActions(this);">⋯</button>
+                    </div>
+                    <div class="info">
+                        <h3 th:text="${item.name}">标题</h3>
+                        <p th:text="${item.productionYear != null ? item.productionYear : ''}">年份</p>
+                    </div>
+                </a>
+            </div>
+        </th:block>
+    </div>
+    <div class="empty" th:if="${mediaItems == null or mediaItems.isEmpty()}">这里还没有内容</div>
+    <div class="pager" th:if="${totalRecordCount != null and totalRecordCount > limit}">
+        <a th:classappend="${startIndex <= 0} ? ' disabled'"
+           th:href="@{/m/media(libraryId=${selectedLibraryId}, parentId=${parentId}, tags=${selectedTags}, excludeTags=${selectedExcludeTags}, isFavorite=${isFavorite}, playStatus=${playStatus}, startIndex=${startIndex - limit}, limit=${limit}, flat=${wantFlat ? 1 : 0}, view=${viewMode}, sortBy=${sortBy}, sortOrder=${sortOrder}, container=${selectedContainer}, videoCodec=${selectedVideoCodec}, resolution=${selectedResolution}, subtitle=${selectedSubtitle})}">上一页</a>
+        <span th:text="${(startIndex / limit) + 1} + ' / ' + ${((totalRecordCount + limit - 1) / limit)}">1 / 1</span>
+        <a th:classappend="${startIndex + limit >= totalRecordCount} ? ' disabled'"
+           th:href="@{/m/media(libraryId=${selectedLibraryId}, parentId=${parentId}, tags=${selectedTags}, excludeTags=${selectedExcludeTags}, isFavorite=${isFavorite}, playStatus=${playStatus}, startIndex=${startIndex + limit}, limit=${limit}, flat=${wantFlat ? 1 : 0}, view=${viewMode}, sortBy=${sortBy}, sortOrder=${sortOrder}, container=${selectedContainer}, videoCodec=${selectedVideoCodec}, resolution=${selectedResolution}, subtitle=${selectedSubtitle})}">下一页</a>
+    </div>
+</div>
+
+<div class="sheet-mask" id="filterMask">
+    <div class="sheet">
+        <h2>筛选</h2>
+        <div class="field">
+            <label>标签（等于）</label>
+            <select id="fTags">
+                <option value="">全部标签</option>
+                <option th:each="t : ${tags}" th:value="${t.name}" th:text="${t.name}"
+                        th:selected="${selectedTags != null and selectedTags == t.name}"></option>
+            </select>
+        </div>
+        <div class="field">
+            <label>排除标签</label>
+            <select id="fExclude">
+                <option value="">不排除</option>
+                <option th:each="t : ${tags}" th:value="${t.name}" th:text="${t.name}"
+                        th:selected="${selectedExcludeTags != null and selectedExcludeTags == t.name}"></option>
+            </select>
+        </div>
+        <label class="toggle">
+            <input type="checkbox" id="fFav" th:checked="${isFavorite == true}"> 仅最爱
+        </label>
+        <div class="field">
+            <label>播放状态</label>
+            <select id="fPlay">
+                <option value="" th:selected="${playStatus == null or playStatus == ''}">任意</option>
+                <option value="played" th:selected="${playStatus == 'played'}">已播放</option>
+                <option value="unplayed" th:selected="${playStatus == 'unplayed'}">未播放</option>
+                <option value="resumable" th:selected="${playStatus == 'resumable'}">继续播放</option>
+            </select>
+        </div>
+        <h3>媒体信息</h3>
+        <div class="field">
+            <label>媒体容器</label>
+            <select id="fContainer"><option value="">任意</option></select>
+        </div>
+        <div class="field">
+            <label>视频解码器</label>
+            <select id="fVideo"><option value="">任意</option></select>
+        </div>
+        <div class="field">
+            <label>分辨率</label>
+            <select id="fRes">
+                <option value="">任意</option>
+                <option value="4k">4K</option>
+                <option value="1080p">1080p</option>
+                <option value="720p">720p</option>
+                <option value="480p">480p</option>
+            </select>
+        </div>
+        <div class="field">
+            <label>字幕</label>
+            <select id="fSub"><option value="">任意</option><option value="has">有字幕</option></select>
+        </div>
+        <div class="row-btns">
+            <button class="btn secondary" type="button" id="fReset">重置</button>
+            <button class="btn secondary" type="button" id="fCancel">取消</button>
+            <button class="btn" type="button" id="fOk">确认</button>
+        </div>
+    </div>
+</div>
+
+<div class="sheet-mask" id="actionMask">
+    <div class="sheet">
+        <h2 id="actionTitle">操作</h2>
+        <button class="action-item" type="button" id="actPlay">在 Emby 中播放</button>
+        <button class="action-item" type="button" id="actFav">收藏</button>
+        <button class="action-item" type="button" id="actPlayed">标记已阅</button>
+        <button class="action-item" type="button" id="actCol">添加到合集</button>
+        <button class="btn secondary" type="button" id="actClose">取消</button>
+    </div>
+</div>
+
+<div class="sheet-mask" id="colMask">
+    <div class="sheet">
+        <h2>添加到合集</h2>
+        <div id="colList">加载中…</div>
+        <button class="btn secondary" type="button" id="colClose">取消</button>
+    </div>
+</div>
+
+<script>
+    const libraryId = '[(${selectedLibraryId})]';
+    const currentView = '[(${viewMode != null ? viewMode : "movie"})]';
+    const currentParentId = '[(${parentId})]';
+    const currentTags = '[(${selectedTags != null ? selectedTags : ""})]';
+    const currentExcludeTags = '[(${selectedExcludeTags != null ? selectedExcludeTags : ""})]';
+    const currentFavorite = [(${isFavorite != null and isFavorite})];
+    const currentPlayStatus = '[(${playStatus != null ? playStatus : ""})]';
+    const currentContainer = '[(${selectedContainer != null ? selectedContainer : ""})]';
+    const currentVideoCodec = '[(${selectedVideoCodec != null ? selectedVideoCodec : ""})]';
+    const currentResolution = '[(${selectedResolution != null ? selectedResolution : ""})]';
+    const currentSubtitle = '[(${selectedSubtitle != null ? selectedSubtitle : ""})]';
+    const currentLimit = [(${limit})];
+    const currentSortBy = '[(${sortBy != null ? sortBy : "SortName"})]';
+    const currentSortOrder = '[(${sortOrder != null ? sortOrder : "Ascending"})]';
+    const LAST_PLAYED_KEY = 'embyBrowseLastPlayedId';
+
+    function buildMediaUrl(overrides) {
+        const params = new URLSearchParams();
+        params.set('libraryId', libraryId);
+        const view = overrides.view !== undefined ? overrides.view : currentView;
+        params.set('view', view);
+        if (view === 'folder') {
+            params.set('flat', '0');
+            const parent = overrides.parentId !== undefined ? overrides.parentId : currentParentId;
+            if (parent && parent !== libraryId) params.set('parentId', parent);
+        } else {
+            params.set('flat', view === 'movie' ? '1' : '1');
+        }
+        const tags = overrides.tags !== undefined ? overrides.tags : currentTags;
+        if (tags) params.set('tags', tags);
+        const ex = overrides.excludeTags !== undefined ? overrides.excludeTags : currentExcludeTags;
+        if (ex) params.set('excludeTags', ex);
+        const fav = overrides.isFavorite !== undefined ? overrides.isFavorite : currentFavorite;
+        if (fav) params.set('isFavorite', 'true');
+        const play = overrides.playStatus !== undefined ? overrides.playStatus : currentPlayStatus;
+        if (play) params.set('playStatus', play);
+        const container = overrides.container !== undefined ? overrides.container : currentContainer;
+        if (container) params.set('container', container);
+        const videoCodec = overrides.videoCodec !== undefined ? overrides.videoCodec : currentVideoCodec;
+        if (videoCodec) params.set('videoCodec', videoCodec);
+        const resolution = overrides.resolution !== undefined ? overrides.resolution : currentResolution;
+        if (resolution) params.set('resolution', resolution);
+        const subtitle = overrides.subtitle !== undefined ? overrides.subtitle : currentSubtitle;
+        if (subtitle) params.set('subtitle', subtitle);
+        params.set('limit', String(overrides.limit !== undefined ? overrides.limit : currentLimit));
+        params.set('sortBy', overrides.sortBy || currentSortBy);
+        params.set('sortOrder', overrides.sortOrder || currentSortOrder);
+        if (overrides.startIndex > 0) params.set('startIndex', String(overrides.startIndex));
+        return '/m/media?' + params.toString();
+    }
+
+    function markJustPlayed(itemId) {
+        if (!itemId) return;
+        try { sessionStorage.setItem(LAST_PLAYED_KEY, itemId); } catch (e) {}
+        document.querySelectorAll('.card.just-played').forEach(function (c) { c.classList.remove('just-played'); });
+        const card = document.querySelector('.card[data-id="' + itemId + '"]');
+        if (card) card.classList.add('just-played');
+    }
+    try { markJustPlayed(sessionStorage.getItem(LAST_PLAYED_KEY)); } catch (e) {}
+
+    const filterMask = document.getElementById('filterMask');
+    let filterLoaded = false;
+    function fillSelect(select, items, extras) {
+        select.innerHTML = '';
+        extras.forEach(function (opt) {
+            const o = document.createElement('option');
+            o.value = opt.value; o.textContent = opt.text; select.appendChild(o);
+        });
+        (items || []).forEach(function (item) {
+            const name = item.Name || item.name;
+            if (!name) return;
+            const o = document.createElement('option');
+            o.value = name; o.textContent = name; select.appendChild(o);
+        });
+    }
+    document.getElementById('filterBtn').addEventListener('click', function () {
+        document.getElementById('fRes').value = currentResolution;
+        filterMask.classList.add('show');
+        if (filterLoaded) return;
+        fetch('/api/filters/media?libraryId=' + encodeURIComponent(libraryId))
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!data.success) return;
+                fillSelect(document.getElementById('fContainer'), data.containers, [{value:'', text:'任意'}]);
+                fillSelect(document.getElementById('fVideo'), data.videoCodecs, [{value:'', text:'任意'}]);
+                fillSelect(document.getElementById('fSub'), data.languages, [{value:'', text:'任意'}, {value:'has', text:'有字幕'}]);
+                document.getElementById('fContainer').value = currentContainer;
+                document.getElementById('fVideo').value = currentVideoCodec;
+                document.getElementById('fRes').value = currentResolution;
+                document.getElementById('fSub').value = currentSubtitle;
+                filterLoaded = true;
+            });
+    });
+    document.getElementById('fCancel').addEventListener('click', function () { filterMask.classList.remove('show'); });
+    document.getElementById('fReset').addEventListener('click', function () {
+        document.getElementById('fTags').value = '';
+        document.getElementById('fExclude').value = '';
+        document.getElementById('fFav').checked = false;
+        document.getElementById('fPlay').value = '';
+        document.getElementById('fContainer').value = '';
+        document.getElementById('fVideo').value = '';
+        document.getElementById('fRes').value = '';
+        document.getElementById('fSub').value = '';
+    });
+    document.getElementById('fOk').addEventListener('click', function () {
+        window.location.href = buildMediaUrl({
+            tags: document.getElementById('fTags').value || '',
+            excludeTags: document.getElementById('fExclude').value || '',
+            isFavorite: document.getElementById('fFav').checked,
+            playStatus: document.getElementById('fPlay').value || '',
+            container: document.getElementById('fContainer').value || '',
+            videoCodec: document.getElementById('fVideo').value || '',
+            resolution: document.getElementById('fRes').value || '',
+            subtitle: document.getElementById('fSub').value || '',
+            startIndex: 0
+        });
+    });
+
+    let act = { id: '', name: '', fav: false, played: false };
+    const actionMask = document.getElementById('actionMask');
+    function openActions(btn) {
+        act.id = btn.getAttribute('data-id');
+        act.name = btn.getAttribute('data-name') || '';
+        act.fav = btn.getAttribute('data-fav') === 'true';
+        act.played = btn.getAttribute('data-played') === 'true';
+        document.getElementById('actionTitle').textContent = act.name || '操作';
+        document.getElementById('actFav').textContent = act.fav ? '取消收藏' : '收藏';
+        document.getElementById('actPlayed').textContent = act.played ? '标为未读' : '标为已阅';
+        actionMask.classList.add('show');
+    }
+    window.openActions = openActions;
+    document.getElementById('actClose').addEventListener('click', function () { actionMask.classList.remove('show'); });
+    document.getElementById('actPlay').addEventListener('click', function () {
+        markJustPlayed(act.id);
+        window.open('/web/index.html?playItemId=' + encodeURIComponent(act.id), '_blank');
+        actionMask.classList.remove('show');
+    });
+    document.getElementById('actFav').addEventListener('click', function () {
+        fetch('/api/media/' + encodeURIComponent(act.id) + '/favorite', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ favorite: !act.fav })
+        }).then(function (r) { return r.json(); }).then(function (data) {
+            if (!data.success) { alert(data.message || '失败'); return; }
+            location.reload();
+        });
+    });
+    document.getElementById('actPlayed').addEventListener('click', function () {
+        fetch('/api/media/' + encodeURIComponent(act.id) + '/played', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ played: !act.played })
+        }).then(function (r) { return r.json(); }).then(function (data) {
+            if (!data.success) { alert(data.message || '失败'); return; }
+            location.reload();
+        });
+    });
+
+    const colMask = document.getElementById('colMask');
+    document.getElementById('actCol').addEventListener('click', function () {
+        actionMask.classList.remove('show');
+        const list = document.getElementById('colList');
+        list.textContent = '加载中…';
+        colMask.classList.add('show');
+        fetch('/api/collections').then(function (r) { return r.json(); }).then(function (data) {
+            if (!data.success) { list.textContent = data.message || '加载失败'; return; }
+            const cols = data.collections || [];
+            if (!cols.length) { list.textContent = '还没有合集'; return; }
+            list.innerHTML = '';
+            cols.forEach(function (c) {
+                const id = c.Id || c.id;
+                const name = c.Name || c.name || id;
+                const btn = document.createElement('button');
+                btn.type = 'button'; btn.className = 'col-item';
+                const thumb = document.createElement('div'); thumb.className = 'col-thumb';
+                if (id) thumb.style.backgroundImage = 'url(/api/image/' + encodeURIComponent(id) + '?type=Primary&maxHeight=120)';
+                const span = document.createElement('span'); span.textContent = name;
+                btn.appendChild(thumb); btn.appendChild(span);
+                btn.addEventListener('click', function () {
+                    btn.disabled = true;
+                    fetch('/api/collections/' + encodeURIComponent(id) + '/items', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ itemIds: [act.id] })
+                    }).then(function (r) { return r.json(); }).then(function (res) {
+                        if (!res.success) { alert(res.message || '添加失败'); btn.disabled = false; return; }
+                        colMask.classList.remove('show');
+                    });
+                });
+                list.appendChild(btn);
+            });
+        });
+    });
+    document.getElementById('colClose').addEventListener('click', function () { colMask.classList.remove('show'); });
+</script>
+</body>
+</html>

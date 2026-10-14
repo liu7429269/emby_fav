@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>出错了 - Emby 手机版</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/m.css">
+</head>
+<body>
+<div class="topbar">
+    <a class="icon-btn" href="/m/libraries">←</a>
+    <div class="title">出错了</div>
+</div>
+<div class="page">
+    <p class="overview" th:text="${error != null ? error : '发生未知错误'}">错误</p>
+    <div class="row-btns" style="margin-top:20px;">
+        <a class="btn" href="/m/libraries">回媒体库</a>
+    </div>
+</div>
+</body>
+</html>

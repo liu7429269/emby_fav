@@ -6,10 +6,12 @@ import com.emby.dto.EmbyItemsResponse;
 import com.emby.dto.EmbyLibrary;
 import com.emby.dto.EmbyMediaItem;
 import com.emby.dto.EmbyTag;
+import com.emby.service.BrowsePageService;
 import com.emby.service.EmbyApiService;
 import com.emby.service.FileMoveService;
 import com.emby.service.BatchTagService;
 import com.emby.service.BatchFavoriteService;
+import com.emby.service.BatchPlayedService;
 import com.emby.service.BatchDeleteService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -48,10 +50,12 @@ public class EmbyController {
     private static final String DEFAULT_PLAY_STATUS = "unplayed";
 
     private final EmbyApiService embyApiService;
+    private final BrowsePageService browsePageService;
     private final EmbyProperties embyProperties;
     private final FileMoveService fileMoveService;
     private final BatchTagService batchTagService;
     private final BatchFavoriteService batchFavoriteService;
+    private final BatchPlayedService batchPlayedService;
     private final BatchDeleteService batchDeleteService;
 
     @GetMapping("/")
@@ -69,10 +73,7 @@ public class EmbyController {
         if (accessToken != null && !accessToken.isEmpty()) {
             return "redirect:/libraries";
         }
-        String sessionUrl = (String) session.getAttribute("embyServerUrl");
-        model.addAttribute("embyServerUrl", sessionUrl != null ? sessionUrl : embyProperties.getUrl());
-        model.addAttribute("defaultUsername", embyProperties.getUsername() != null ? embyProperties.getUsername() : "");
-        model.addAttribute("defaultPassword", embyProperties.getPassword() != null ? embyProperties.getPassword() : "");
+        browsePageService.fillLogin(session, model);
         return "login";
     }
 
@@ -118,11 +119,7 @@ public class EmbyController {
             return "redirect:/login";
         }
         try {
-            List<EmbyLibrary> libraries = embyApiService.getLibraries(accessToken, userId);
-            model.addAttribute("libraries", libraries);
-            model.addAttribute("userName", session.getAttribute("embyUserName"));
-            model.addAttribute("searchScope", "all");
-            model.addAttribute("searchQuery", "");
+            browsePageService.fillLibraries(session, model);
             return "libraries";
         } catch (Exception e) {
             log.error("获取媒体库失败", e);
@@ -145,6 +142,10 @@ public class EmbyController {
             @RequestParam(required = false) String view,
             @RequestParam(required = false) String sortBy,
             @RequestParam(required = false) String sortOrder,
+            @RequestParam(required = false) String container,
+            @RequestParam(required = false) String videoCodec,
+            @RequestParam(required = false) String resolution,
+            @RequestParam(required = false) String subtitle,
             HttpSession session,
             Model model) {
         String accessToken = (String) session.getAttribute("embyAccessToken");
@@ -153,90 +154,9 @@ public class EmbyController {
             return "redirect:/login";
         }
         try {
-            int effectiveLimit = normalizeLimit(limit);
-            String effectiveSortBy = EmbyApiService.normalizeSortBy(sortBy);
-            String effectiveSortOrder = EmbyApiService.normalizeSortOrder(sortOrder);
-            String viewMode = resolveView(view, flat);
-            boolean wantCollection = "collection".equals(viewMode);
-            boolean wantFlat = "movie".equals(viewMode);
-            String effectivePlayStatus = wantCollection ? null : resolvePlayStatus(playStatus);
-
-            String effectiveParent = (parentId != null && !parentId.isEmpty()) ? parentId : libraryId;
-            boolean hasFilters = (tags != null && !tags.isEmpty())
-                    || (excludeTags != null && !excludeTags.isEmpty())
-                    || Boolean.TRUE.equals(isFavorite)
-                    || effectivePlayStatus != null;
-            boolean recursive;
-            String includeTypes;
-
-            EmbyLibrary currentLibrary = findLibrary(accessToken, userId, libraryId);
-            if (wantCollection && effectiveParent.equals(libraryId)) {
-                recursive = true;
-                includeTypes = "BoxSet";
-                effectiveParent = libraryId;
-            } else if (wantFlat || hasFilters) {
-                recursive = true;
-                includeTypes = "Movie,Series";
-                if (wantFlat) {
-                    effectiveParent = libraryId;
-                }
-            } else if (currentLibrary != null && "boxsets".equalsIgnoreCase(currentLibrary.getCollectionType())
-                    && effectiveParent.equals(libraryId)) {
-                recursive = false;
-                includeTypes = null;
-            } else if (effectiveParent.equals(libraryId)) {
-                recursive = false;
-                includeTypes = null;
-            } else {
-                // 文件夹内：非递归展示直接子项（子文件夹 + 影片）
-                recursive = false;
-                includeTypes = null;
-            }
-
-            EmbyItemsResponse itemsResponse = embyApiService.getItems(
-                    accessToken, userId, effectiveParent, recursive, includeTypes,
-                    tags, excludeTags, isFavorite, effectivePlayStatus, startIndex, effectiveLimit,
-                    effectiveSortBy, effectiveSortOrder);
-
-            // 库根无文件夹时回退到扁平电影墙
-            if (!recursive && !hasFilters && !wantFlat && !wantCollection && effectiveParent.equals(libraryId)
-                    && (itemsResponse.getItems() == null || itemsResponse.getItems().isEmpty())
-                    && currentLibrary != null && !"boxsets".equalsIgnoreCase(currentLibrary.getCollectionType())) {
-                recursive = true;
-                includeTypes = "Movie,Series";
-                itemsResponse = embyApiService.getItems(
-                        accessToken, userId, effectiveParent, true, includeTypes,
-                        tags, excludeTags, isFavorite, effectivePlayStatus, startIndex, effectiveLimit,
-                        effectiveSortBy, effectiveSortOrder);
-            }
-
-            List<EmbyTag> tagList = embyApiService.getTags(accessToken, userId);
-            List<EmbyLibrary> libraries = embyApiService.getLibraries(accessToken, userId);
-
-            model.addAttribute("mediaItems", itemsResponse.getItems());
-            model.addAttribute("totalRecordCount", itemsResponse.getTotalRecordCount());
-            model.addAttribute("tags", tagList);
-            model.addAttribute("libraries", libraries);
-            model.addAttribute("selectedLibraryId", libraryId);
-            model.addAttribute("parentId", effectiveParent);
-            model.addAttribute("selectedTags", tags);
-            model.addAttribute("selectedExcludeTags", excludeTags);
-            model.addAttribute("isFavorite", isFavorite);
-            model.addAttribute("playStatus", effectivePlayStatus != null ? effectivePlayStatus : "");
-            model.addAttribute("startIndex", startIndex);
-            model.addAttribute("limit", effectiveLimit);
-            model.addAttribute("browseRecursive", recursive);
-            model.addAttribute("wantFlat", wantFlat);
-            model.addAttribute("wantCollection", wantCollection);
-            model.addAttribute("viewMode", viewMode);
-            model.addAttribute("searchScope", libraryId);
-            model.addAttribute("searchQuery", "");
-            model.addAttribute("sortBy", effectiveSortBy);
-            model.addAttribute("sortOrder", effectiveSortOrder);
-            model.addAttribute("pageSizes", PAGE_SIZES);
-            model.addAttribute("currentLibrary", currentLibrary);
-            model.addAttribute("embyServerUrl", embyProperties.getUrl());
-            model.addAttribute("userName", session.getAttribute("embyUserName"));
+            browsePageService.fillMedia(libraryId, parentId, tags, excludeTags, isFavorite, playStatus,
+                    startIndex, limit, flat, view, sortBy, sortOrder,
+                    container, videoCodec, resolution, subtitle, session, model);
             return "media";
         } catch (Exception e) {
             log.error("获取媒体项失败", e);
@@ -258,6 +178,10 @@ public class EmbyController {
                               @RequestParam(required = false) Integer limit,
                               @RequestParam(required = false) String sortBy,
                               @RequestParam(required = false) String sortOrder,
+                              @RequestParam(required = false) String container,
+                              @RequestParam(required = false) String videoCodec,
+                              @RequestParam(required = false) String resolution,
+                              @RequestParam(required = false) String subtitle,
                               HttpSession session,
                               Model model) {
         String accessToken = (String) session.getAttribute("embyAccessToken");
@@ -266,26 +190,9 @@ public class EmbyController {
             return "redirect:/login";
         }
         try {
-            EmbyMediaItem item = embyApiService.getItem(accessToken, userId, itemId);
-            List<EmbyTag> tagList = embyApiService.getTags(accessToken, userId);
-            model.addAttribute("item", item);
-            model.addAttribute("tags", tagList);
-            model.addAttribute("libraryId", libraryId);
-            model.addAttribute("parentId", parentId);
-            model.addAttribute("flat", flat);
-            model.addAttribute("selectedTags", tags);
-            model.addAttribute("selectedExcludeTags", excludeTags);
-            model.addAttribute("isFavorite", isFavorite);
-            model.addAttribute("playStatus", playStatus != null ? playStatus : "");
-            model.addAttribute("startIndex", startIndex);
-            model.addAttribute("limit", limit);
-            model.addAttribute("sortBy", sortBy);
-            model.addAttribute("sortOrder", sortOrder);
-            model.addAttribute("embyServerUrl", embyProperties.getUrl());
-            model.addAttribute("userName", session.getAttribute("embyUserName"));
-            model.addAttribute("libraries", embyApiService.getLibraries(accessToken, userId));
-            model.addAttribute("searchScope", "all");
-            model.addAttribute("searchQuery", "");
+            browsePageService.fillDetail(itemId, libraryId, parentId, flat, tags, excludeTags, isFavorite,
+                    playStatus, startIndex, limit, sortBy, sortOrder,
+                    container, videoCodec, resolution, subtitle, session, model);
             return "detail";
         } catch (Exception e) {
             log.error("获取详情失败", e);
@@ -308,28 +215,7 @@ public class EmbyController {
             return "redirect:/login";
         }
         try {
-            String query = q != null ? q.trim() : "";
-            String effectiveScope = (scope != null && !scope.isEmpty()) ? scope : "all";
-            int effectiveLimit = normalizeLimit(limit);
-            List<EmbyLibrary> libraries = embyApiService.getLibraries(accessToken, userId);
-            EmbyItemsResponse itemsResponse;
-            if (query.isEmpty()) {
-                itemsResponse = new EmbyItemsResponse();
-                itemsResponse.setItems(Collections.emptyList());
-                itemsResponse.setTotalRecordCount(0);
-            } else {
-                String parentId = "all".equalsIgnoreCase(effectiveScope) ? null : effectiveScope;
-                itemsResponse = embyApiService.searchItems(
-                        accessToken, userId, query, parentId, startIndex, effectiveLimit);
-            }
-            model.addAttribute("mediaItems", itemsResponse.getItems());
-            model.addAttribute("totalRecordCount", itemsResponse.getTotalRecordCount());
-            model.addAttribute("libraries", libraries);
-            model.addAttribute("searchQuery", query);
-            model.addAttribute("searchScope", effectiveScope);
-            model.addAttribute("startIndex", startIndex);
-            model.addAttribute("limit", effectiveLimit);
-            model.addAttribute("userName", session.getAttribute("embyUserName"));
+            browsePageService.fillSearch(q, scope, startIndex, limit, session, model);
             return "search";
         } catch (Exception e) {
             log.error("搜索失败", e);
@@ -820,6 +706,34 @@ public class EmbyController {
         return EmbyApiService.normalizePlayStatus(playStatus);
     }
 
+    private String blankToNull(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return null;
+        }
+        return value.trim();
+    }
+
+    private String normalizeResolution(String resolution) {
+        String value = blankToNull(resolution);
+        if (value == null) {
+            return null;
+        }
+        String r = value.toLowerCase();
+        if ("4k".equals(r) || "2160p".equals(r) || "uhd".equals(r)) {
+            return "4k";
+        }
+        if ("1080p".equals(r) || "1080".equals(r)) {
+            return "1080p";
+        }
+        if ("720p".equals(r) || "720".equals(r)) {
+            return "720p";
+        }
+        if ("480p".equals(r) || "480".equals(r) || "sd".equals(r)) {
+            return "480p";
+        }
+        return null;
+    }
+
     private EmbyLibrary findLibrary(String token, String userId, String libraryId) {
         try {
             List<EmbyLibrary> libraries = embyApiService.getLibraries(token, userId);
@@ -1204,6 +1118,60 @@ public class EmbyController {
         return result;
     }
 
+    @PostMapping("/api/played/batch")
+    @ResponseBody
+    public Map<String, Object> batchPlayed(@RequestBody Map<String, Object> body, HttpSession session) {
+        Map<String, Object> result = new HashMap<>();
+        String accessToken = (String) session.getAttribute("embyAccessToken");
+        String userId = (String) session.getAttribute("embyUserId");
+        if (!isLoggedIn(accessToken, userId)) {
+            result.put("success", false);
+            result.put("message", "未登录");
+            return result;
+        }
+        try {
+            @SuppressWarnings("unchecked")
+            List<String> itemIds = (List<String>) body.get("itemIds");
+            boolean played = body.get("played") != null
+                    && Boolean.parseBoolean(body.get("played").toString());
+            if (itemIds == null || itemIds.isEmpty()) {
+                result.put("success", false);
+                result.put("message", "未选择媒体");
+                return result;
+            }
+            String taskId = batchPlayedService.startBatch(itemIds, played, accessToken, userId);
+            result.put("success", true);
+            result.put("taskId", taskId);
+        } catch (Exception e) {
+            log.error("启动批量已阅失败", e);
+            result.put("success", false);
+            result.put("message", "启动批量已阅失败: " + e.getMessage());
+        }
+        return result;
+    }
+
+    @GetMapping("/api/played/batch/{taskId}")
+    @ResponseBody
+    public Map<String, Object> batchPlayedProgress(@PathVariable String taskId) {
+        Map<String, Object> result = new HashMap<>();
+        BatchPlayedService.BatchPlayedTask task = batchPlayedService.getTask(taskId);
+        if (task == null) {
+            result.put("success", false);
+            result.put("message", "任务不存在");
+            return result;
+        }
+        result.put("success", true);
+        result.put("taskId", task.getTaskId());
+        result.put("total", task.getTotal());
+        result.put("done", task.getDone());
+        result.put("failed", task.getFailed());
+        result.put("status", task.getStatus());
+        result.put("currentName", task.getCurrentName());
+        result.put("message", task.getMessage());
+        result.put("failedItems", task.getFailedItems());
+        return result;
+    }
+
     @GetMapping("/api/favorites/batch/{taskId}")
     @ResponseBody
     public Map<String, Object> batchFavoriteProgress(@PathVariable String taskId) {
@@ -1298,6 +1266,33 @@ public class EmbyController {
         result.put("currentName", task.getCurrentName());
         result.put("message", task.getMessage());
         result.put("failedItems", task.getFailedItems());
+        return result;
+    }
+
+    @GetMapping("/api/filters/media")
+    @ResponseBody
+    public Map<String, Object> apiMediaFilterOptions(
+            @RequestParam(required = false) String libraryId,
+            @RequestParam(required = false) String parentId,
+            HttpSession session) {
+        Map<String, Object> result = new HashMap<>();
+        String accessToken = (String) session.getAttribute("embyAccessToken");
+        String userId = (String) session.getAttribute("embyUserId");
+        if (!isLoggedIn(accessToken, userId)) {
+            result.put("success", false);
+            result.put("message", "未登录");
+            return result;
+        }
+        try {
+            String scope = (parentId != null && !parentId.isEmpty()) ? parentId : libraryId;
+            Map<String, List<EmbyTag>> options = embyApiService.getMediaFilterOptions(accessToken, userId, scope);
+            result.put("success", true);
+            result.putAll(options);
+        } catch (Exception e) {
+            log.error("获取媒体过滤选项失败", e);
+            result.put("success", false);
+            result.put("message", "获取过滤选项失败: " + e.getMessage());
+        }
         return result;
     }
 

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title th:text="${item != null ? item.name : '详情'}">详情</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/m.css">
+</head>
+<body>
+<div class="hero" th:style="${item != null} ? |background-image:url(/api/image/${item.id}?type=Backdrop&amp;maxHeight=720)| : ''">
+    <div class="topbar" style="background:transparent;border:none;position:relative;z-index:2;">
+        <a class="icon-btn"
+           th:href="${libraryId != null} ? @{/m/media(libraryId=${libraryId}, parentId=${parentId}, flat=${flat}, tags=${selectedTags}, excludeTags=${selectedExcludeTags}, isFavorite=${isFavorite}, playStatus=${playStatus}, startIndex=${startIndex}, limit=${limit}, sortBy=${sortBy}, sortOrder=${sortOrder}, container=${selectedContainer}, videoCodec=${selectedVideoCodec}, resolution=${selectedResolution}, subtitle=${selectedSubtitle})} : @{/m/libraries}">←</a>
+        <div class="title"></div>
+        <a class="icon-btn" href="/m/search">搜</a>
+    </div>
+</div>
+
+<div class="detail-body" th:if="${item != null}">
+    <div class="detail-poster" th:style="|background-image:url(/api/image/${item.id}?type=Primary&amp;maxHeight=600)|"></div>
+    <h1 th:text="${item.name}">标题</h1>
+    <div class="meta-row">
+        <span th:if="${item.productionYear != null}" th:text="${item.productionYear}">年份</span>
+        <span th:if="${item.type != null}" th:text="${item.type}">类型</span>
+        <span th:if="${item.communityRating != null}" th:text="'评分 ' + ${item.communityRating}">评分</span>
+    </div>
+    <div class="meta-row" th:if="${item.runtimeText != null or item.videoSummary != null}">
+        <span th:if="${item.runtimeText != null}" th:text="${item.runtimeText}">时长</span>
+        <span th:if="${item.videoSummary != null}" th:text="${item.videoSummary}">视频</span>
+        <span th:if="${item.audioSummary != null}" th:text="${item.audioSummary}">音频</span>
+    </div>
+    <div class="actions">
+        <a class="btn wide" target="_blank" id="detailPlay"
+           th:href="@{/web/index.html(playItemId=${item.id})}"
+           th:data-id="${item.id}">在 Emby 中播放</a>
+        <button type="button" class="btn secondary" id="detailFav"
+                th:data-id="${item.id}"
+                th:data-fav="${item.userDataInfo != null and item.userDataInfo.isFavorite == true}"
+                th:text="${item.userDataInfo != null and item.userDataInfo.isFavorite == true} ? '取消收藏' : '收藏'">收藏</button>
+        <button type="button" class="btn secondary" id="detailPlayed"
+                th:data-id="${item.id}"
+                th:data-played="${item.userDataInfo != null and item.userDataInfo.played == true}"
+                th:text="${item.userDataInfo != null and item.userDataInfo.played == true} ? '标为未读' : '标为已阅'">已阅</button>
+    </div>
+    <div class="section" th:if="${item.tags != null and !item.tags.isEmpty()}">
+        <h2>标签</h2>
+        <span class="chip" th:each="t : ${item.tags}" th:text="${t}">标签</span>
+    </div>
+    <div class="section" th:if="${item.genres != null and !item.genres.isEmpty()}">
+        <h2>类型</h2>
+        <span class="chip" th:each="g : ${item.genres}" th:text="${g}">类型</span>
+    </div>
+    <div class="section">
+        <h2>简介</h2>
+        <p class="overview" th:text="${item.overview != null and !item.overview.isEmpty()} ? ${item.overview} : '暂无简介'">简介</p>
+    </div>
+    <div class="section" th:if="${item.chapters != null and !item.chapters.isEmpty()}">
+        <h2>章节</h2>
+        <div class="chapter-row">
+            <div class="chapter-card" th:each="ch, iter : ${item.chapters}">
+                <div class="chapter-thumb">
+                    <img th:src="@{/api/image/{id}(id=${item.id}, type=Chapter, index=${iter.index}, maxHeight=180)}" alt=""
+                         onerror="this.style.display='none';">
+                </div>
+                <div class="chapter-name" th:text="${ch.name != null and !ch.name.isEmpty()} ? ${ch.name} : ('章节 ' + ${iter.count})">章节</div>
+                <div class="chapter-time" th:text="${ch.startTimeText}">0:00</div>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="foot-link"><a href="/libraries">桌面版</a></div>
+<script>
+    const LAST_PLAYED_KEY = 'embyBrowseLastPlayedId';
+    const play = document.getElementById('detailPlay');
+    if (play) {
+        play.addEventListener('click', function () {
+            try { sessionStorage.setItem(LAST_PLAYED_KEY, play.getAttribute('data-id')); } catch (e) {}
+        });
+    }
+    const favBtn = document.getElementById('detailFav');
+    if (favBtn) {
+        favBtn.addEventListener('click', function () {
+            const id = favBtn.getAttribute('data-id');
+            const fav = favBtn.getAttribute('data-fav') === 'true';
+            favBtn.disabled = true;
+            fetch('/api/media/' + encodeURIComponent(id) + '/favorite', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ favorite: !fav })
+            }).then(function (r) { return r.json(); }).then(function (data) {
+                if (!data.success) { alert(data.message || '失败'); favBtn.disabled = false; return; }
+                location.reload();
+            });
+        });
+    }
+    const playedBtn = document.getElementById('detailPlayed');
+    if (playedBtn) {
+        playedBtn.addEventListener('click', function () {
+            const id = playedBtn.getAttribute('data-id');
+            const played = playedBtn.getAttribute('data-played') === 'true';
+            playedBtn.disabled = true;
+            fetch('/api/media/' + encodeURIComponent(id) + '/played', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ played: !played })
+            }).then(function (r) { return r.json(); }).then(function (data) {
+                if (!data.success) { alert(data.message || '失败'); playedBtn.disabled = false; return; }
+                location.reload();
+            });
+        });
+    }
+</script>
+</body>
+</html>

@@ -252,7 +252,7 @@ public class EmbyApiService {
                                       int startIndex, int limit,
                                       String sortBy, String sortOrder) {
         return getItems(token, userId, parentId, recursive, includeItemTypes,
-                tags, excludeTags, isFavorite, playStatus, startIndex, limit, sortBy, sortOrder, null);
+                tags, excludeTags, isFavorite, playStatus, startIndex, limit, sortBy, sortOrder, null, null);
     }
 
     public EmbyItemsResponse getItems(String token, String userId, String parentId,
@@ -260,6 +260,15 @@ public class EmbyApiService {
                                       String tags, String excludeTags, Boolean isFavorite, String playStatus,
                                       int startIndex, int limit,
                                       String sortBy, String sortOrder, String searchTerm) {
+        return getItems(token, userId, parentId, recursive, includeItemTypes,
+                tags, excludeTags, isFavorite, playStatus, startIndex, limit, sortBy, sortOrder, searchTerm, null);
+    }
+
+    public EmbyItemsResponse getItems(String token, String userId, String parentId,
+                                      boolean recursive, String includeItemTypes,
+                                      String tags, String excludeTags, Boolean isFavorite, String playStatus,
+                                      int startIndex, int limit,
+                                      String sortBy, String sortOrder, String searchTerm, MediaInfoFilter mediaFilter) {
         String effectiveSortBy = normalizeSortBy(sortBy);
         String effectiveSortOrder = normalizeSortOrder(sortOrder);
         String effectivePlayStatus = normalizePlayStatus(playStatus);
@@ -309,6 +318,7 @@ public class EmbyApiService {
                         if (!filters.isEmpty()) {
                             builder.queryParam("Filters", String.join(",", filters));
                         }
+                        applyMediaInfoFilter(builder, mediaFilter);
                         builder.queryParam("Limit", queryLimit);
 
                         return builder.build(userId);
@@ -365,6 +375,93 @@ public class EmbyApiService {
         } catch (Exception e) {
             log.error("获取媒体项失败", e);
             throw new RuntimeException("获取媒体项失败: " + e.getMessage(), e);
+        }
+    }
+
+    private void applyMediaInfoFilter(UriBuilder builder, MediaInfoFilter mediaFilter) {
+        if (mediaFilter == null || mediaFilter.isEmpty()) {
+            return;
+        }
+        if (mediaFilter.getContainers() != null) {
+            builder.queryParam("Containers", mediaFilter.getContainers());
+        }
+        if (mediaFilter.getVideoCodecs() != null) {
+            builder.queryParam("VideoCodecs", mediaFilter.getVideoCodecs());
+        }
+        if (mediaFilter.getSubtitleLanguages() != null) {
+            builder.queryParam("SubtitleLanguages", mediaFilter.getSubtitleLanguages());
+        }
+        if (mediaFilter.getHasSubtitles() != null) {
+            builder.queryParam("HasSubtitles", mediaFilter.getHasSubtitles());
+        }
+        if (Boolean.TRUE.equals(mediaFilter.getIs4K())) {
+            builder.queryParam("Is4K", true);
+        }
+        if (mediaFilter.getMinWidth() != null) {
+            builder.queryParam("MinWidth", mediaFilter.getMinWidth());
+        }
+        if (mediaFilter.getMaxWidth() != null) {
+            builder.queryParam("MaxWidth", mediaFilter.getMaxWidth());
+        }
+    }
+
+    public List<EmbyTag> listFilterOptions(String token, String userId, String parentId, String path) {
+        try {
+            WebClient webClient = createWebClient(token);
+            String jsonResponse = webClient.get()
+                    .uri(uriBuilder -> {
+                        UriBuilder builder = uriBuilder
+                                .path(path)
+                                .queryParam("UserId", userId)
+                                .queryParam("Recursive", true);
+                        if (parentId != null && !parentId.isEmpty()) {
+                            builder.queryParam("ParentId", parentId);
+                        }
+                        return builder.build();
+                    })
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block();
+            return parseTagItems(jsonResponse);
+        } catch (Exception e) {
+            log.error("获取过滤选项失败 path={}", path, e);
+            return Collections.emptyList();
+        }
+    }
+
+    public Map<String, List<EmbyTag>> getMediaFilterOptions(String token, String userId, String parentId) {
+        Map<String, List<EmbyTag>> options = new HashMap<>();
+        options.put("containers", listFilterOptions(token, userId, parentId, "/emby/Containers"));
+        options.put("videoCodecs", listFilterOptions(token, userId, parentId, "/emby/VideoCodecs"));
+        options.put("languages", listFilterOptions(token, userId, parentId, "/emby/StreamLanguages"));
+        return options;
+    }
+
+    private List<EmbyTag> parseTagItems(String jsonResponse) {
+        if (jsonResponse == null || jsonResponse.isEmpty()) {
+            return Collections.emptyList();
+        }
+        try {
+            JsonNode jsonNode = objectMapper.readTree(jsonResponse);
+            List<EmbyTag> result;
+            if (jsonNode.has("Items")) {
+                result = objectMapper.convertValue(jsonNode.get("Items"),
+                        objectMapper.getTypeFactory().constructCollectionType(List.class, EmbyTag.class));
+            } else if (jsonNode.isArray()) {
+                result = objectMapper.convertValue(jsonNode,
+                        objectMapper.getTypeFactory().constructCollectionType(List.class, EmbyTag.class));
+            } else {
+                return Collections.emptyList();
+            }
+            if (result == null) {
+                return Collections.emptyList();
+            }
+            result.sort(java.util.Comparator.comparing(
+                    t -> t.getName() == null ? "" : t.getName().toLowerCase()));
+            return result;
+        } catch (Exception e) {
+            log.error("解析过滤选项失败", e);
+            return Collections.emptyList();
         }
     }
 
