@@ -620,6 +620,95 @@ public class FileMoveService {
     }
 
     /**
+     * 将磁盘上的文件夹整夹移动到 targetPath 下（targetPath / 文件夹名）。
+     */
+    public String startMoveFolderDirectory(String targetPath, Path srcDir, String displayName) {
+        String taskId = UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+        String name = displayName != null && !displayName.isEmpty()
+                ? displayName : srcDir.getFileName().toString();
+        log.info("startMoveFolderDirectory: targetPath={}, src={}, name={}", targetPath, srcDir, name);
+        MoveTask task = new MoveTask();
+        task.setTaskId(taskId);
+        task.setTotal(1);
+        task.setDone(0);
+        task.setFailed(0);
+        task.setStatus("running");
+        task.setFailedFiles(new ArrayList<>());
+        tasks.put(taskId, task);
+
+        Path targetDir = Paths.get(targetPath).normalize();
+        try {
+            if (isFilesystemRoot(targetDir)) {
+                task.setStatus("failed");
+                task.setMessage("目标目录不能是文件系统根");
+                return taskId;
+            }
+            Files.createDirectories(targetDir);
+        } catch (Exception e) {
+            task.setStatus("failed");
+            task.setMessage("创建目标目录失败: " + e.getMessage());
+            return taskId;
+        }
+
+        Thread worker = new Thread(() -> {
+            task.setCurrentName(name);
+            MoveItem mi = new MoveItem(null, name, srcDir.toString());
+            boolean success = moveFolderDirectory(srcDir, targetDir, task, mi);
+            if (success) {
+                task.setDone(1);
+                task.setStatus("done");
+                task.setMessage("已完成：移动文件夹 " + name);
+            } else {
+                task.setFailed(1);
+                task.setStatus("failed");
+                task.setMessage("移动文件夹失败");
+            }
+            task.setCurrentName(null);
+        }, "move-folder-" + taskId);
+        worker.setDaemon(true);
+        worker.start();
+        return taskId;
+    }
+
+    private boolean moveFolderDirectory(Path srcDir, Path targetDir, MoveTask task, MoveItem mi) {
+        try {
+            Path src = srcDir.toAbsolutePath().normalize();
+            if (!Files.isDirectory(src)) {
+                task.getFailedFiles().add(mi.getName() + "（不是目录）");
+                return false;
+            }
+            Path dest = targetDir.resolve(src.getFileName()).normalize();
+            task.setCurrentName(src.getFileName().toString());
+            if (dest.equals(src)) {
+                task.getFailedFiles().add(mi.getName() + "（目标与源相同）");
+                return false;
+            }
+            if (dest.startsWith(src)) {
+                task.getFailedFiles().add(mi.getName() + "（不能移入自身子路径）");
+                return false;
+            }
+            if (src.startsWith(dest)) {
+                task.getFailedFiles().add(mi.getName() + "（不能移入自身子路径）");
+                return false;
+            }
+            if (Files.exists(dest)) {
+                task.getFailedFiles().add(mi.getName() + "（目标已存在）");
+                return false;
+            }
+            log.info("整夹移动文件夹: {} -> {}", src, dest);
+            if (moveWithFallback(src, dest)) {
+                return true;
+            }
+            task.getFailedFiles().add(mi.getName() + "（移动失败, 详见日志）");
+            return false;
+        } catch (Exception e) {
+            log.error("整夹移动文件夹失败: {}", mi.getName(), e);
+            task.getFailedFiles().add(mi.getName() + "（" + e.getMessage() + "）");
+            return false;
+        }
+    }
+
+    /**
      * 整夹移入目标目录：targetDir / 文件夹名。
      * @return true 成功
      */

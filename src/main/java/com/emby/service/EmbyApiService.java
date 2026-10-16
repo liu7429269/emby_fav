@@ -471,6 +471,59 @@ public class EmbyApiService {
         return response.getItems() != null ? response.getItems() : Collections.emptyList();
     }
 
+    private static boolean isFolderBatchContainerType(String type) {
+        if (type == null || type.isEmpty()) {
+            return false;
+        }
+        String t = type.trim();
+        return "Folder".equalsIgnoreCase(t)
+                || "BoxSet".equalsIgnoreCase(t)
+                || "CollectionFolder".equalsIgnoreCase(t)
+                || "Playlist".equalsIgnoreCase(t)
+                || "UserView".equalsIgnoreCase(t)
+                || "Channel".equalsIgnoreCase(t)
+                || "ChannelFolderItem".equalsIgnoreCase(t)
+                || "PhotoAlbum".equalsIgnoreCase(t);
+    }
+
+    /**
+     * 递归列出文件夹下所有可批量操作的媒体 itemId（不含 Folder/BoxSet 等容器）。
+     */
+    public List<String> listMediaItemIdsUnderFolder(String token, String userId, String folderId) {
+        List<String> ids = new ArrayList<>();
+        if (folderId == null || folderId.isEmpty()) {
+            return ids;
+        }
+        int pageSize = 500;
+        int start = 0;
+        int total = Integer.MAX_VALUE;
+        while (start < total) {
+            // 不限制 IncludeItemTypes，避免 Video 等类型被漏掉；下面再排除容器类条目
+            EmbyItemsResponse response = getItems(token, userId, folderId, true, null,
+                    null, null, null, null, start, pageSize, DEFAULT_SORT_BY, DEFAULT_SORT_ORDER);
+            List<EmbyMediaItem> items = response.getItems();
+            if (items == null || items.isEmpty()) {
+                break;
+            }
+            for (EmbyMediaItem it : items) {
+                if (it == null || it.getId() == null || it.getId().isEmpty()) {
+                    continue;
+                }
+                if (isFolderBatchContainerType(it.getType())) {
+                    continue;
+                }
+                ids.add(it.getId());
+            }
+            Integer totalRecord = response.getTotalRecordCount();
+            total = totalRecord != null ? totalRecord : start + items.size();
+            start += pageSize;
+            if (items.size() < pageSize) {
+                break;
+            }
+        }
+        return ids;
+    }
+
     public void addToCollection(String token, String collectionId, List<String> itemIds) {
         if (collectionId == null || collectionId.isEmpty()) {
             throw new IllegalArgumentException("合集 ID 不能为空");

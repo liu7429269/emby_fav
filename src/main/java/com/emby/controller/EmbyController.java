@@ -1338,8 +1338,18 @@ public class EmbyController {
                     result.put("message", "媒体路径为空或远程 URL，无法本地浏览");
                     return result;
                 }
-                path = fileMoveService.goUpLevels(itemPath, 3);
-                log.info("browse 向上3级 → {}", path);
+                if (firstItem.getType() != null && "Folder".equalsIgnoreCase(firstItem.getType())) {
+                    java.nio.file.Path dir = fileMoveService.toLocalDir(itemPath);
+                    if (dir != null && dir.getParent() != null) {
+                        path = dir.getParent().toString().replace('\\', '/');
+                    } else {
+                        path = fileMoveService.goUpLevels(itemPath, 1);
+                    }
+                    log.info("browse 文件夹父目录 → {}", path);
+                } else {
+                    path = fileMoveService.goUpLevels(itemPath, 3);
+                    log.info("browse 向上3级 → {}", path);
+                }
             }
 
             // 规范化并验证
@@ -1647,6 +1657,156 @@ public class EmbyController {
             log.error("删除媒体失败 {}", itemId, e);
             result.put("success", false);
             result.put("message", "删除失败: " + e.getMessage());
+        }
+        return result;
+    }
+
+    @PostMapping("/api/folders/{folderId}/played")
+    @ResponseBody
+    public Map<String, Object> folderBatchPlayed(@PathVariable String folderId,
+                                                   @RequestBody Map<String, Object> body,
+                                                   HttpSession session) {
+        Map<String, Object> result = new HashMap<>();
+        String accessToken = (String) session.getAttribute("embyAccessToken");
+        String userId = (String) session.getAttribute("embyUserId");
+        if (!isLoggedIn(accessToken, userId)) {
+            result.put("success", false);
+            result.put("message", "未登录");
+            return result;
+        }
+        try {
+            List<String> itemIds = embyApiService.listMediaItemIdsUnderFolder(accessToken, userId, folderId);
+            if (itemIds.isEmpty()) {
+                result.put("success", false);
+                result.put("message", "文件夹内没有可操作的媒体");
+                return result;
+            }
+            boolean played = body.get("played") != null
+                    && Boolean.parseBoolean(body.get("played").toString());
+            String taskId = batchPlayedService.startBatch(itemIds, played, accessToken, userId);
+            result.put("success", true);
+            result.put("taskId", taskId);
+            result.put("total", itemIds.size());
+        } catch (Exception e) {
+            log.error("文件夹批量已阅失败 folderId={}", folderId, e);
+            result.put("success", false);
+            result.put("message", "启动失败: " + e.getMessage());
+        }
+        return result;
+    }
+
+    @PostMapping("/api/folders/{folderId}/favorite")
+    @ResponseBody
+    public Map<String, Object> folderBatchFavorite(@PathVariable String folderId,
+                                                     @RequestBody Map<String, Object> body,
+                                                     HttpSession session) {
+        Map<String, Object> result = new HashMap<>();
+        String accessToken = (String) session.getAttribute("embyAccessToken");
+        String userId = (String) session.getAttribute("embyUserId");
+        if (!isLoggedIn(accessToken, userId)) {
+            result.put("success", false);
+            result.put("message", "未登录");
+            return result;
+        }
+        try {
+            List<String> itemIds = embyApiService.listMediaItemIdsUnderFolder(accessToken, userId, folderId);
+            if (itemIds.isEmpty()) {
+                result.put("success", false);
+                result.put("message", "文件夹内没有可操作的媒体");
+                return result;
+            }
+            boolean favorite = body.get("favorite") != null
+                    && Boolean.parseBoolean(body.get("favorite").toString());
+            String taskId = batchFavoriteService.startBatch(itemIds, favorite, accessToken, userId);
+            result.put("success", true);
+            result.put("taskId", taskId);
+            result.put("total", itemIds.size());
+        } catch (Exception e) {
+            log.error("文件夹批量收藏失败 folderId={}", folderId, e);
+            result.put("success", false);
+            result.put("message", "启动失败: " + e.getMessage());
+        }
+        return result;
+    }
+
+    @PostMapping("/api/folders/{folderId}/tags")
+    @ResponseBody
+    public Map<String, Object> folderBatchTags(@PathVariable String folderId,
+                                                 @RequestBody Map<String, Object> body,
+                                                 HttpSession session) {
+        Map<String, Object> result = new HashMap<>();
+        String accessToken = (String) session.getAttribute("embyAccessToken");
+        String userId = (String) session.getAttribute("embyUserId");
+        if (!isLoggedIn(accessToken, userId)) {
+            result.put("success", false);
+            result.put("message", "未登录");
+            return result;
+        }
+        try {
+            @SuppressWarnings("unchecked")
+            List<String> tags = (List<String>) body.get("tags");
+            if (tags == null || tags.isEmpty()) {
+                result.put("success", false);
+                result.put("message", "请至少选择一个标签");
+                return result;
+            }
+            List<String> itemIds = embyApiService.listMediaItemIdsUnderFolder(accessToken, userId, folderId);
+            if (itemIds.isEmpty()) {
+                result.put("success", false);
+                result.put("message", "文件夹内没有可操作的媒体");
+                return result;
+            }
+            String taskId = batchTagService.startBatch(itemIds, tags, accessToken, userId);
+            result.put("success", true);
+            result.put("taskId", taskId);
+            result.put("total", itemIds.size());
+        } catch (Exception e) {
+            log.error("文件夹批量打标签失败 folderId={}", folderId, e);
+            result.put("success", false);
+            result.put("message", "启动失败: " + e.getMessage());
+        }
+        return result;
+    }
+
+    @PostMapping("/api/folders/{folderId}/move")
+    @ResponseBody
+    public Map<String, Object> folderMove(@PathVariable String folderId,
+                                          @RequestBody Map<String, Object> body,
+                                          HttpSession session) {
+        Map<String, Object> result = new HashMap<>();
+        String accessToken = (String) session.getAttribute("embyAccessToken");
+        String userId = (String) session.getAttribute("embyUserId");
+        if (!isLoggedIn(accessToken, userId)) {
+            result.put("success", false);
+            result.put("message", "未登录");
+            return result;
+        }
+        try {
+            String targetPath = body.get("targetPath") != null ? body.get("targetPath").toString() : null;
+            if (targetPath == null || targetPath.isEmpty()) {
+                result.put("success", false);
+                result.put("message", "缺少目标路径");
+                return result;
+            }
+            EmbyMediaItem folder = embyApiService.getItem(accessToken, userId, folderId);
+            if (folder == null) {
+                result.put("success", false);
+                result.put("message", "无法获取文件夹信息");
+                return result;
+            }
+            java.nio.file.Path srcDir = localFolderRoot(folder);
+            if (srcDir == null) {
+                result.put("success", false);
+                result.put("message", "找不到该文件夹的本地目录");
+                return result;
+            }
+            String taskId = fileMoveService.startMoveFolderDirectory(targetPath, srcDir, folder.getName());
+            result.put("success", true);
+            result.put("taskId", taskId);
+        } catch (Exception e) {
+            log.error("文件夹移动失败 folderId={}", folderId, e);
+            result.put("success", false);
+            result.put("message", "启动移动失败: " + e.getMessage());
         }
         return result;
     }

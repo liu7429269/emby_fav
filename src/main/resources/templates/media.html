@@ -304,6 +304,13 @@
             transform: translateY(-3px) scale(1.02);
             box-shadow: 0 10px 24px rgba(0,0,0,.5);
         }
+        .card.card-more-open,
+        .card.card-more-open:hover,
+        .card-wrap.card-more-open .card,
+        .card-wrap.card-more-open .card:hover {
+            transform: none;
+            box-shadow: none;
+        }
         .card-wrap .card:hover {
             transform: translateY(-3px);
         }
@@ -491,12 +498,24 @@
             background: #1a1a1a;
             border: 1px solid #444;
             border-radius: 6px;
-            min-width: 88px;
-            overflow: hidden;
+            min-width: 132px;
+            max-height: 280px;
+            overflow-x: hidden;
+            overflow-y: auto;
             z-index: 6;
             box-shadow: 0 8px 20px rgba(0,0,0,.45);
         }
-        .more-menu.show { display: block; }
+        .more-menu.show {
+            display: block;
+            z-index: 200;
+            pointer-events: auto;
+        }
+        .card.card-more-open,
+        .card-wrap.card-more-open {
+            overflow: visible;
+            position: relative;
+            z-index: 80;
+        }
         .more-menu button {
             display: block;
             width: 100%;
@@ -947,6 +966,30 @@
                                 th:data-id="${item.id}"
                                 th:data-name="${item.name}"
                                 onclick="event.preventDefault();event.stopPropagation();openItemPath(this);">显示路径</button>
+                        <button type="button"
+                                th:data-id="${item.id}"
+                                th:data-name="${item.name}"
+                                onclick="event.preventDefault();event.stopPropagation();openFolderBatchPlayed(this, true);">全部标为已阅</button>
+                        <button type="button"
+                                th:data-id="${item.id}"
+                                th:data-name="${item.name}"
+                                onclick="event.preventDefault();event.stopPropagation();openFolderBatchPlayed(this, false);">全部标为未读</button>
+                        <button type="button"
+                                th:data-id="${item.id}"
+                                th:data-name="${item.name}"
+                                onclick="event.preventDefault();event.stopPropagation();openFolderBatchFavorite(this, true);">全部收藏</button>
+                        <button type="button"
+                                th:data-id="${item.id}"
+                                th:data-name="${item.name}"
+                                onclick="event.preventDefault();event.stopPropagation();openFolderBatchFavorite(this, false);">全部取消收藏</button>
+                        <button type="button"
+                                th:data-id="${item.id}"
+                                th:data-name="${item.name}"
+                                onclick="event.preventDefault();event.stopPropagation();openFolderBatchTag(this);">打标签</button>
+                        <button type="button"
+                                th:data-id="${item.id}"
+                                th:data-name="${item.name}"
+                                onclick="event.preventDefault();event.stopPropagation();openFolderMove(this);">移动到新目录</button>
                         <button type="button" class="danger"
                                 th:data-id="${item.id}"
                                 th:data-name="${item.name}"
@@ -1088,7 +1131,7 @@
 <!-- 移动弹窗 -->
 <div class="modal-mask" id="moveMask">
     <div class="modal">
-        <h2>移动到新目录</h2>
+        <h2 id="moveMaskTitle">移动到新目录</h2>
         <label>当前目录</label>
         <div id="moveBreadcrumb" class="move-breadcrumb">加载中…</div>
         <label>子目录（点击进入）</label>
@@ -1104,8 +1147,8 @@
 <!-- 批量标签弹窗 -->
 <div class="modal-mask" id="tagMask">
     <div class="modal">
-        <h2>批量打标签</h2>
-        <div class="prog-text">将对 <strong id="tagSelectedCount">0</strong> 项媒体应用所选标签</div>
+        <h2 id="tagMaskTitle">批量打标签</h2>
+        <div class="prog-text" id="tagMaskHint">将对 <strong id="tagSelectedCount">0</strong> 项媒体应用所选标签</div>
         <label for="batchTagSearch">搜索已有标签</label>
         <input type="search" id="batchTagSearch" placeholder="输入关键字筛选标签…">
         <div class="tag-options" id="batchTagOptions">
@@ -1678,14 +1721,18 @@
         });
     }
 
-    moveBtn.addEventListener('click', function () {
+    let pendingFolderId = null;
+    let pendingFolderName = '';
+    let pendingFolderMoveId = null;
+
+    function openMoveBrowseForItemIds(itemIds) {
         moveMask.classList.add('show');
         moveBreadcrumb.textContent = '加载中…';
         moveDirList.innerHTML = '<div class="move-dir-item">加载中…</div>';
         fetch('/api/library/browse', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ itemIds: Array.from(selected) })
+            body: JSON.stringify({ itemIds: itemIds })
         }).then(function (r) { return r.json(); }).then(function (data) {
             if (!data.success) {
                 moveBreadcrumb.textContent = data.message || '失败';
@@ -1701,6 +1748,12 @@
             moveBreadcrumb.textContent = '请求失败';
             moveDirList.innerHTML = '<div class="move-dir-empty">请求失败</div>';
         });
+    }
+
+    moveBtn.addEventListener('click', function () {
+        pendingFolderMoveId = null;
+        document.getElementById('moveMaskTitle').textContent = '移动到新目录';
+        openMoveBrowseForItemIds(Array.from(selected));
     });
 
     moveUpBtn.addEventListener('click', function () {
@@ -1709,18 +1762,28 @@
 
     document.getElementById('moveCancel').addEventListener('click', function () {
         moveMask.classList.remove('show');
+        pendingFolderMoveId = null;
+        document.getElementById('moveMaskTitle').textContent = '移动到新目录';
     });
 
     document.getElementById('moveConfirm').addEventListener('click', function () {
         if (!browseCurrent) { alert('请先浏览到目标目录'); return; }
         saveRememberedTarget(browseCurrent);
-        fetch('/api/move', {
+        const moveUrl = pendingFolderMoveId
+            ? ('/api/folders/' + encodeURIComponent(pendingFolderMoveId) + '/move')
+            : '/api/move';
+        const moveBody = pendingFolderMoveId
+            ? { targetPath: browseCurrent }
+            : { itemIds: Array.from(selected), targetPath: browseCurrent };
+        fetch(moveUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ itemIds: Array.from(selected), targetPath: browseCurrent })
+            body: JSON.stringify(moveBody)
         }).then(r => r.json()).then(data => {
             if (!data.success) { alert(data.message || '启动失败'); return; }
             moveMask.classList.remove('show');
+            pendingFolderMoveId = null;
+            document.getElementById('moveMaskTitle').textContent = '移动到新目录';
             startProgress(data.taskId, '/api/move/', '已移动', 'failedFiles');
         }).catch(e => alert('请求失败: ' + e.message));
     });
@@ -1782,7 +1845,10 @@
         }
     });
     batchTagBtn.addEventListener('click', function () {
-        document.getElementById('tagSelectedCount').textContent = selected.size;
+        pendingFolderId = null;
+        pendingFolderName = '';
+        document.getElementById('tagMaskTitle').textContent = '批量打标签';
+        document.getElementById('tagMaskHint').innerHTML = '将对 <strong id="tagSelectedCount">' + selected.size + '</strong> 项媒体应用所选标签';
         customBatchTags = new Set();
         batchTagSearch.value = '';
         batchTagOptions.querySelectorAll('.tag-option').forEach(function (option) {
@@ -1794,6 +1860,8 @@
     });
     document.getElementById('tagCancel').addEventListener('click', function () {
         tagMask.classList.remove('show');
+        pendingFolderId = null;
+        pendingFolderName = '';
     });
     document.getElementById('tagConfirm').addEventListener('click', function () {
         const tagsToApply = selectedBatchTags();
@@ -1803,16 +1871,24 @@
         }
         const confirmBtn = document.getElementById('tagConfirm');
         confirmBtn.disabled = true;
-        fetch('/api/tags/batch', {
+        const tagUrl = pendingFolderId
+            ? ('/api/folders/' + encodeURIComponent(pendingFolderId) + '/tags')
+            : '/api/tags/batch';
+        const tagBody = pendingFolderId
+            ? { tags: tagsToApply }
+            : { itemIds: Array.from(selected), tags: tagsToApply };
+        fetch(tagUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ itemIds: Array.from(selected), tags: tagsToApply })
+            body: JSON.stringify(tagBody)
         }).then(r => r.json()).then(function (data) {
             if (!data.success) {
                 alert(data.message || '启动批量打标签失败');
                 return;
             }
             tagMask.classList.remove('show');
+            pendingFolderId = null;
+            pendingFolderName = '';
             startProgress(data.taskId, '/api/tags/batch/', '已处理', 'failedItems');
         }).catch(e => alert('请求失败: ' + e.message))
             .finally(function () { confirmBtn.disabled = false; });
@@ -1964,8 +2040,52 @@
     const DELETE_WARN = '将永久删除文件、配套文件；独立文件夹会整夹删除，无法撤销。';
     let pendingDelete = null;
 
+    function resetMoreMenuPosition(menu) {
+        if (!menu) return;
+        menu.style.position = '';
+        menu.style.left = '';
+        menu.style.top = '';
+        menu.style.right = '';
+        menu.style.bottom = '';
+        menu.style.minWidth = '';
+    }
+    function positionMoreMenu(anchorBtn, menu) {
+        document.querySelectorAll('.card-more-open').forEach(function (el) {
+            el.classList.remove('card-more-open');
+        });
+        const host = anchorBtn.closest('.card-wrap') || anchorBtn.closest('.card');
+        if (host) host.classList.add('card-more-open');
+        menu.style.position = 'fixed';
+        menu.style.right = 'auto';
+        menu.style.bottom = 'auto';
+        menu.style.minWidth = '148px';
+        menu.classList.add('show');
+        requestAnimationFrame(function () {
+            const rect = anchorBtn.getBoundingClientRect();
+            const mw = menu.offsetWidth || 148;
+            const mh = menu.offsetHeight || 280;
+            let left = rect.right - mw;
+            if (left < 8) left = 8;
+            if (left + mw > window.innerWidth - 8) {
+                left = window.innerWidth - mw - 8;
+            }
+            let top = rect.bottom + 6;
+            if (top + mh > window.innerHeight - 8) {
+                top = rect.top - mh - 6;
+            }
+            if (top < 8) top = 8;
+            menu.style.left = Math.round(left) + 'px';
+            menu.style.top = Math.round(top) + 'px';
+        });
+    }
     function closeAllMoreMenus() {
-        document.querySelectorAll('.more-menu.show').forEach(function (m) { m.classList.remove('show'); });
+        document.querySelectorAll('.more-menu.show').forEach(function (m) {
+            m.classList.remove('show');
+            resetMoreMenuPosition(m);
+        });
+        document.querySelectorAll('.card-more-open').forEach(function (el) {
+            el.classList.remove('card-more-open');
+        });
     }
 
     const pathMask = document.getElementById('pathMask');
@@ -2053,7 +2173,9 @@
         if (!menu) return;
         const open = menu.classList.contains('show');
         closeAllMoreMenus();
-        if (!open) menu.classList.add('show');
+        if (!open) {
+            positionMoreMenu(btn, menu);
+        }
     }
     function openDeleteConfirm(pending) {
         pendingDelete = pending;
@@ -2100,6 +2222,79 @@
     }
     window.openLocalFolder = openLocalFolder;
     window.openEmbyFolder = openEmbyFolder;
+
+    function folderMenuName(btn) {
+        return btn.getAttribute('data-name') || '该文件夹';
+    }
+    function openFolderBatchPlayed(btn, played) {
+        const id = btn.getAttribute('data-id');
+        if (!id) return;
+        const name = folderMenuName(btn);
+        closeAllMoreMenus();
+        const action = played ? '已阅' : '未读';
+        if (!confirm('将对「' + name + '」文件夹内所有媒体（含子文件夹）标为' + action + '，是否继续？')) return;
+        fetch('/api/folders/' + encodeURIComponent(id) + '/played', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ played: played })
+        }).then(function (r) { return r.json(); }).then(function (data) {
+            if (!data.success) {
+                alert(data.message || '启动失败');
+                return;
+            }
+            startProgress(data.taskId, '/api/played/batch/', played ? '已阅' : '未读', 'failedItems');
+        }).catch(function (err) { alert('请求失败: ' + err.message); });
+    }
+    function openFolderBatchFavorite(btn, favorite) {
+        const id = btn.getAttribute('data-id');
+        if (!id) return;
+        const name = folderMenuName(btn);
+        closeAllMoreMenus();
+        const action = favorite ? '收藏' : '取消收藏';
+        if (!confirm('将对「' + name + '」文件夹内所有媒体（含子文件夹）' + action + '，是否继续？')) return;
+        fetch('/api/folders/' + encodeURIComponent(id) + '/favorite', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ favorite: favorite })
+        }).then(function (r) { return r.json(); }).then(function (data) {
+            if (!data.success) {
+                alert(data.message || '启动失败');
+                return;
+            }
+            startProgress(data.taskId, '/api/favorites/batch/', favorite ? '已收藏' : '已取消收藏', 'failedItems');
+        }).catch(function (err) { alert('请求失败: ' + err.message); });
+    }
+    function openFolderBatchTag(btn) {
+        const id = btn.getAttribute('data-id');
+        if (!id) return;
+        pendingFolderId = id;
+        pendingFolderName = folderMenuName(btn);
+        closeAllMoreMenus();
+        document.getElementById('tagMaskTitle').textContent = '为文件夹内媒体打标签';
+        document.getElementById('tagMaskHint').textContent =
+            '将为文件夹「' + pendingFolderName + '」内全部媒体（含子文件夹）应用所选标签';
+        customBatchTags = new Set();
+        batchTagSearch.value = '';
+        batchTagOptions.querySelectorAll('.tag-option').forEach(function (option) {
+            option.style.display = 'flex';
+            option.querySelector('input').checked = false;
+        });
+        renderBatchTagChips();
+        tagMask.classList.add('show');
+    }
+    function openFolderMove(btn) {
+        const id = btn.getAttribute('data-id');
+        if (!id) return;
+        pendingFolderMoveId = id;
+        const name = folderMenuName(btn);
+        closeAllMoreMenus();
+        document.getElementById('moveMaskTitle').textContent = '移动文件夹「' + name + '」到新目录';
+        openMoveBrowseForItemIds([id]);
+    }
+    window.openFolderBatchPlayed = openFolderBatchPlayed;
+    window.openFolderBatchFavorite = openFolderBatchFavorite;
+    window.openFolderBatchTag = openFolderBatchTag;
+    window.openFolderMove = openFolderMove;
 
     const colMask = document.getElementById('colMask');
     const colList = document.getElementById('colList');
@@ -2204,7 +2399,12 @@
         allCollections = [];
     });
 
-    document.addEventListener('click', function () { closeAllMoreMenus(); });
+    document.addEventListener('click', function (e) {
+        if (e.target.closest('.more-menu') || e.target.closest('.more-btn')) return;
+        closeAllMoreMenus();
+    });
+    window.addEventListener('resize', closeAllMoreMenus);
+    window.addEventListener('scroll', closeAllMoreMenus, true);
 
     batchDelBtn.addEventListener('click', function () {
         if (selected.size === 0) return;
